@@ -136,3 +136,67 @@ html {
   background-clip: text;
 }
 
+/* ── 全局屏幕适配 ── */
+
+/* 小屏手机（< 640px）基础字体缩小 */
+@media (max-width: 639px) {
+  html { font-size: 14px; }
+  .responsive-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
+
+/* 大屏桌面（≥ 1440px）内容居中 + 限制最大宽度 */
+@media (min-width: 1440px) {
+  .responsive-container {
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* 超大屏（≥ 1920px）进一步限制宽度 */
+@media (min-width: 1920px) {
+  .responsive-container {
+    max-width: 1600px;
+  }
+}
+
+/* 确保所有卡片/表格不溢出 */
+.responsive-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* 表格在手机上水平滚动 */
+@media (max-width: 767px) {
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── 教程系统动画 ── */
+
+/* 金手指弹跳 */
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-bounce-soft {
+  animation: bounce-soft 1.5s ease-in-out infinite;
+}
+
+/* 脉冲光环 */
+@keyframes ping-slow {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.animate-ping-slow {
+  animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* 彩纸落下 */
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 0.9; }
+  100% { transform: translateY(100vh) rotate(720deg) scale(0.5); opacity: 0; }
+}
+

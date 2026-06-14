@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import { initStorage } from './lib/storageVersion'
+
+// 首次启动初始化
+initStorage()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

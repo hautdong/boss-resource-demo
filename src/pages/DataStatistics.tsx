@@ -1,205 +1,258 @@
+import { useState, useMemo, useEffect } from "react"
+import { useAuth } from "../context/AuthContext"
+import { api } from "../lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
-import { BarChart3, TrendingUp, Download, Upload, Trophy, Users } from "lucide-react"
+import { Download, Trophy, Users, Star, Filter } from "lucide-react"
 
-const bossRankings = [
-  { rank: 1, name: "赵六", department: "华东事业部", greetings: 12800, replies: 4560, replyRate: "35.6%", roi: "2.8x", score: 95 },
-  { rank: 2, name: "吴九", department: "西部事业部", greetings: 9800, replies: 3230, replyRate: "33.0%", roi: "2.5x", score: 88 },
-  { rank: 3, name: "孙七", department: "华北事业部", greetings: 15200, replies: 4860, replyRate: "32.0%", roi: "2.3x", score: 85 },
-  { rank: 4, name: "郑十", department: "华南事业部", greetings: 6500, replies: 2010, replyRate: "30.9%", roi: "2.1x", score: 78 },
-  { rank: 5, name: "陈十一", department: "华东事业部", greetings: 3200, replies: 920, replyRate: "28.8%", roi: "1.8x", score: 70 },
-  { rank: 6, name: "周八", department: "华中事业部", greetings: 4500, replies: 1200, replyRate: "26.7%", roi: "1.5x", score: 65 },
-]
+interface RankUser {
+  id: string
+  name: string
+  username: string
+  phone: string
+  department: string
+  roleLabel: string
+  points: number
+  lastPointsTime: string
+}
 
-const departmentStats = [
-  { department: "华东事业部", bossCount: 8, totalGreetings: 45000, totalReplies: 15600, avgReplyRate: "34.7%", totalCost: "¥128,000", avgRoi: "2.6x" },
-  { department: "华南事业部", bossCount: 6, totalGreetings: 32000, totalReplies: 10200, avgReplyRate: "31.9%", totalCost: "¥96,000", avgRoi: "2.3x" },
-  { department: "华北事业部", bossCount: 5, totalGreetings: 28000, totalReplies: 8600, avgReplyRate: "30.7%", totalCost: "¥72,000", avgRoi: "2.1x" },
-  { department: "华中事业部", bossCount: 4, totalGreetings: 18000, totalReplies: 5000, avgReplyRate: "27.8%", totalCost: "¥54,000", avgRoi: "1.8x" },
-  { department: "西部事业部", bossCount: 3, totalGreetings: 15000, totalReplies: 4800, avgReplyRate: "32.0%", totalCost: "¥35,000", avgRoi: "2.4x" },
-]
+function loadRealUsers(): RankUser[] {
+  try {
+    const raw = localStorage.getItem("boss-resource-users")
+    if (!raw) return []
+    const allUsers = JSON.parse(raw)
+    const entries = Object.entries(allUsers) as [string, any][]
+
+    return entries
+      .map(([, entry]) => {
+        const u = entry.user || entry
+        if (u.role !== "boss") return null
+
+        const userKey = `${u.name || ""}-${u.phone || u.username || ""}`
+        const points = (() => {
+          try { return Number(localStorage.getItem(`boss-points-${userKey}`)) || 0 } catch { return 0 }
+        })()
+        const lastPointsTime = (() => {
+          try { return localStorage.getItem(`boss-points-last-time-${userKey}`) || "" } catch { return "" }
+        })()
+
+        return {
+          id: u.id,
+          name: u.name || "",
+          username: u.username || "",
+          phone: u.phone || "",
+          department: u.department || "未分配",
+          roleLabel: u.roleLabel || "成员BOSS",
+          points,
+          lastPointsTime,
+        }
+      })
+      .filter(Boolean) as RankUser[]
+  } catch {
+    return []
+  }
+}
 
 export default function DataStatistics() {
+  const { user } = useAuth()
+  const [users, setUsers] = useState<RankUser[]>([])
+  const isAdmin = user?.role === "super_admin" || user?.role === "admin"
+
+  // 优先从 API 加载，失败降级到 localStorage
+  useEffect(() => {
+    api.stats.ranking()
+      .then((data: any[]) => {
+        const mapped: RankUser[] = data.map((u: any) => ({
+          id: u.id, name: u.name || "", username: u.username || "",
+          phone: u.phone || "", department: u.department || "未分配",
+          roleLabel: u.roleLabel || "成员BOSS", points: u.points || 0,
+          lastPointsTime: u.lastPointsTime || "",
+        }))
+        setUsers(mapped)
+      })
+      .catch(() => {
+        // API 不可用，降级到 localStorage
+        setUsers(loadRealUsers())
+      })
+  }, [])
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points
+      // 末次获得积分时间更早的排前面
+      if (a.lastPointsTime && b.lastPointsTime) {
+        return new Date(a.lastPointsTime).getTime() - new Date(b.lastPointsTime).getTime()
+      }
+      if (a.lastPointsTime) return -1
+      if (b.lastPointsTime) return 1
+      return 0
+    })
+  }, [users])
+
+  const departments = useMemo(() => {
+    const deps = new Set(users.map((u) => u.department).filter(Boolean))
+    return Array.from(deps).sort()
+  }, [users])
+
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all")
+
+  const filteredUsers = useMemo(() => {
+    if (departmentFilter === "all") return sortedUsers
+    return sortedUsers.filter((u) => u.department === departmentFilter)
+  }, [sortedUsers, departmentFilter])
+
+  const totalBoss = sortedUsers.length
+  const totalPoints = sortedUsers.reduce((s, u) => s + u.points, 0)
+  const avgPoints = totalBoss > 0 ? (totalPoints / totalBoss).toFixed(1) : "0"
+
+  const handleExport = () => {
+    const rows = [["排名", "姓名", "部门", "积分", "末次获得时间"]]
+    filteredUsers.forEach((u, i) => {
+      const timeStr = u.lastPointsTime
+        ? new Date(u.lastPointsTime).toLocaleString("zh-CN")
+        : "未获得"
+      rows.push([String(i + 1), u.name, u.department, String(u.points), timeStr])
+    })
+    const csv = rows.map((r) => r.join(",")).join("\n")
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url; a.download = "BOSS积分排名.csv"; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight gradient-text">数据统计</h1>
-        <p className="text-sm text-muted-foreground mt-1">资源使用统计、BOSS 排名、投入产出比分析</p>
+        <p className="text-sm text-muted-foreground mt-1">BOSS 积分排名</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: "总打招呼数", value: "138,000", change: "+12.3%", icon: <TrendingUp className="h-5 w-5" /> },
-          { title: "总回复数", value: "44,260", change: "+8.7%", icon: <BarChart3 className="h-5 w-5" /> },
-          { title: "平均回复率", value: "32.1%", change: "+2.1%", icon: <TrendingUp className="h-5 w-5" /> },
-          { title: "总投入产出比", value: "2.3x", change: "+0.3x", icon: <Trophy className="h-5 w-5" /> },
-        ].map((item, i) => (
-          <Card key={i}>
-            <CardHeader className="pb-2 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm text-muted-foreground">{item.title}</CardTitle>
-              <div className="text-primary">{item.icon}</div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{item.value}</p>
-              <p className="text-xs text-emerald-500 mt-1">较上月 {item.change}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm text-muted-foreground">BOSS 总人数</CardTitle>
+            <Users className="h-5 w-5 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{totalBoss}</p>
+            <p className="text-xs text-muted-foreground mt-1">活跃 BOSS 成员</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm text-muted-foreground">总积分</CardTitle>
+            <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{totalPoints}</p>
+            <p className="text-xs text-muted-foreground mt-1">全部门累计</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm text-muted-foreground">平均积分</CardTitle>
+            <Trophy className="h-5 w-5 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{avgPoints}</p>
+            <p className="text-xs text-muted-foreground mt-1">人均积分</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <Tabs defaultValue="bossRanking">
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="bossRanking">BOSS 排名</TabsTrigger>
-            <TabsTrigger value="departmentStats">部门统计</TabsTrigger>
-            <TabsTrigger value="dataImport">数据导入</TabsTrigger>
-          </TabsList>
-          <Button variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-1" />
-            导出报表
-          </Button>
-        </div>
-
-        {/* BOSS Ranking Tab */}
-        <TabsContent value="bossRanking" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-amber-500" />
-                <CardTitle className="text-base">BOSS 综合排名</CardTitle>
-                <Badge variant="primary" className="ml-2">排名依据：回复率 + 投入产出比</Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">排名</TableHead>
-                    <TableHead>BOSS</TableHead>
-                    <TableHead>部门</TableHead>
-                    <TableHead>打招呼数</TableHead>
-                    <TableHead>回复数</TableHead>
-                    <TableHead>回复率</TableHead>
-                    <TableHead>投入产出比</TableHead>
-                    <TableHead>综合评分</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bossRankings.map((item) => (
-                    <TableRow key={item.rank} className="animate-fade-in" style={{ animationDelay: `${item.rank * 50}ms` }}>
-                      <TableCell>
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
-                          item.rank === 1 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                          item.rank === 2 ? "bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400" :
-                          item.rank === 3 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {item.rank}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell className="text-sm">{item.department}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.greetings.toLocaleString()}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.replies.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={parseFloat(item.replyRate) > 32 ? "success" : "default"}>
-                          {item.replyRate}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm font-medium text-emerald-600">{item.roi}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${item.score}%` }} />
-                          </div>
-                          <span className="text-xs font-medium">{item.score}</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              <CardTitle className="text-base">BOSS 综合排名</CardTitle>
+              <Badge variant="primary" className="ml-2">排名依据：积分</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground relative z-10">
+                <Filter className="h-4 w-4 shrink-0" />
+                <label className="sr-only" htmlFor="dept-filter">部门筛选</label>
+                <select
+                  id="dept-filter"
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="rounded-lg border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer min-w-[120px] appearance-auto"
+                >
+                  <option value="all">全部部门</option>
+                  {departments.length === 0 && <option value="" disabled>暂无部门</option>}
+                  {departments.map((d) => (
+                    <option key={d} value={d}>{d}</option>
                   ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Department Stats Tab */}
-        <TabsContent value="departmentStats" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                <CardTitle className="text-base">部门数据统计</CardTitle>
+                </select>
               </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={handleExport}>
+                  <Download className="h-4 w-4 mr-1" />导出报表
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">排名</TableHead>
+                  <TableHead>BOSS</TableHead>
+                  <TableHead>部门</TableHead>
+                  <TableHead>积分</TableHead>
+                  <TableHead>末次获得时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableHead>部门</TableHead>
-                    <TableHead>BOSS人数</TableHead>
-                    <TableHead>总打招呼</TableHead>
-                    <TableHead>总回复</TableHead>
-                    <TableHead>平均回复率</TableHead>
-                    <TableHead>总成本</TableHead>
-                    <TableHead>平均投入产出比</TableHead>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      {users.length === 0 ? "暂无用户数据，请先注册成员BOSS账号" : "当前部门无数据"}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {departmentStats.map((item) => (
-                    <TableRow key={item.department}>
-                      <TableCell className="font-medium">{item.department}</TableCell>
-                      <TableCell>{item.bossCount}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.totalGreetings.toLocaleString()}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.totalReplies.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant="success">{item.avgReplyRate}</Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{item.totalCost}</TableCell>
-                      <TableCell className="font-mono text-sm font-medium text-emerald-600">{item.avgRoi}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Data Import Tab */}
-        <TabsContent value="dataImport" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">数据导入与计算</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="rounded-lg border-2 border-dashed p-8 text-center">
-                  <Upload className="h-10 w-10 mx-auto text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">拖拽文件到此处，或点击上传</p>
-                  <p className="text-xs text-muted-foreground mt-1">支持 .xlsx, .csv 格式的 BOSS 企业后台导出数据</p>
-                  <Button variant="outline" size="sm" className="mt-4">
-                    <Upload className="h-4 w-4 mr-1" />
-                    选择文件上传
-                  </Button>
-                </div>
-                <div className="p-4 rounded-lg bg-muted/50">
-                  <p className="text-sm font-medium">数据导入说明</p>
-                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    <li>• 可从 BOSS 企业后台导出数据后上传到本系统</li>
-                    <li>• 系统自动计算：回复率 = 回复数 / 打招呼数 × 100%</li>
-                    <li>• 投入产出比 = 产出价值 / 资源成本</li>
-                    <li>• 如需包含招聘数据，请联系运营部提供司机招聘人数及合格情况</li>
-                  </ul>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                ) : (
+                  filteredUsers.map((item, idx) => {
+                    const rank = idx + 1
+                    return (
+                      <TableRow key={item.id} className="animate-fade-in" style={{ animationDelay: `${idx * 50}ms` }}>
+                        <TableCell>
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                            rank === 1 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                            rank === 2 ? "bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400" :
+                            rank === 3 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" :
+                            "bg-muted text-muted-foreground"
+                          }`}>{rank}</div>
+                        </TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell className="text-sm">{item.department}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-0">
+                            <Star className="h-3 w-3 mr-1 fill-amber-500" />
+                            {item.points}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.lastPointsTime
+                            ? new Date(item.lastPointsTime).toLocaleString("zh-CN", {
+                                year: "numeric", month: "2-digit", day: "2-digit",
+                                hour: "2-digit", minute: "2-digit"
+                              })
+                            : "未获得"}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

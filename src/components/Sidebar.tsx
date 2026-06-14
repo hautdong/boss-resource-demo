@@ -12,8 +12,17 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "../lib/utils"
+import { getVisibleNavItems, type Permission } from "../lib/permissions"
+import type { UserRole } from "../context/AuthContext"
 
-const navItems = [
+interface NavItemDef {
+  to: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  color: string
+}
+
+const ALL_NAV_ITEMS: NavItemDef[] = [
   { to: "/", icon: LayoutDashboard, label: "工作台", color: "text-indigo-500" },
   { to: "/profile", icon: UserCircle, label: "个人信息", color: "text-emerald-500" },
   { to: "/management", icon: Users, label: "账号管理", color: "text-blue-500" },
@@ -28,9 +37,15 @@ interface SidebarProps {
   onToggleCollapse: () => void
   mobileOpen: boolean
   onMobileClose: () => void
+  userRole?: UserRole
 }
 
-export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose }: SidebarProps) {
+export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose, userRole }: SidebarProps) {
+  // Filter nav items based on user role
+  const visiblePermissions = getVisibleNavItems(userRole || "boss")
+  const visiblePaths = new Set(visiblePermissions.map((p) => p.to))
+  const navItems = ALL_NAV_ITEMS.filter((item) => visiblePaths.has(item.to))
+
   return (
     <>
       {/* Mobile overlay backdrop */}
@@ -94,7 +109,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
               }
             >
               <item.icon className={cn("h-5 w-5 shrink-0", "group-hover:scale-110 transition-transform duration-200")} />
-              <span className="animate-fade-in">{item.label}</span>
+              {!collapsed && <span className="animate-fade-in">{item.label}</span>}
             </NavLink>
           ))}
         </nav>

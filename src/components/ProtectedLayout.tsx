@@ -1,20 +1,31 @@
 import { useState, useEffect } from "react"
 import { Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { useTutorial } from "../context/TutorialContext"
 import { Sidebar } from "./Sidebar"
 import { TopNav } from "./TopNav"
+import TutorialGuide from "./TutorialGuide"
 import { cn } from "../lib/utils"
+import { hasPermission } from "../lib/permissions"
+
+const ROUTE_PERMISSIONS: Record<string, string> = {
+  "/": "view_dashboard",
+  "/profile": "view_profile",
+  "/management": "view_management",
+  "/resources": "view_resources",
+  "/statistics": "view_statistics",
+  "/logs": "view_logs",
+  "/bugs": "view_bugs",
+}
 
 export function ProtectedLayout() {
   const { isAuthenticated, isLoading, user } = useAuth()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { isActive: tutorialActive } = useTutorial()
 
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    setMobileOpen(false)
-  }, [location.pathname])
+  useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
   if (isLoading) {
     return (
@@ -27,41 +38,34 @@ export function ProtectedLayout() {
     )
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />
 
-  // Check activation: if user is a boss-level role and not activated, redirect to activation
-  if (
-    user &&
-    (user.role === "boss") &&
-    user.activationStatus !== "activated" &&
-    location.pathname !== "/activation"
-  ) {
+  if (user && user.activationStatus !== "activated" && location.pathname !== "/activation") {
     return <Navigate to="/activation" replace />
   }
 
+  const requiredPerm = ROUTE_PERMISSIONS[location.pathname]
+  if (user && requiredPerm && !hasPermission(user.role, requiredPerm as any)) {
+    return <Navigate to="/" replace />
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
+        userRole={user?.role}
       />
-      <div
-        className={cn(
-          "transition-all duration-300",
-          // Desktop: adjust for sidebar width
-          "lg:pl-60",
-          collapsed && "lg:pl-16"
-        )}
-      >
+      <div className={cn("transition-all duration-300", "lg:pl-60", collapsed && "lg:pl-16")}>
         <TopNav onMobileMenuToggle={() => setMobileOpen(true)} />
-        <main className="p-3 sm:p-4 md:p-6 animate-fade-in max-w-full overflow-x-hidden">
+        <main className={`p-3 sm:p-4 md:p-6 animate-fade-in responsive-container ${tutorialActive ? "pt-14" : ""}`}>
           <Outlet />
         </main>
       </div>
+      {/* 教程引导层 */}
+      <TutorialGuide />
     </div>
   )
 }

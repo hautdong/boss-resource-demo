@@ -3,13 +3,7 @@ import { useNavigate, Link } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
-import { Eye, EyeOff, Loader2, Sparkles, User } from "lucide-react"
-
-const quickUsers = [
-  { label: "林伶俐", role: "超级管理员", badge: "超管", username: "lll", password: "admin123", color: "bg-violet-500" },
-  { label: "林锦超", role: "管理员", badge: "管理", username: "ljc", password: "admin123", color: "bg-blue-500" },
-  { label: "黄文凤", role: "成员BOSS", badge: "成员", username: "hwf", password: "13141314", color: "bg-emerald-500" },
-]
+import { Eye, EyeOff, Loader2, Sparkles } from "lucide-react"
 
 export default function Login() {
   const [username, setUsername] = useState("")
@@ -34,25 +28,6 @@ export default function Login() {
       }
     } catch {
       setError("系统异常，请稍后重试")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const quickLogin = async (u: string, p: string) => {
-    setUsername(u)
-    setPassword(p)
-    setError("")
-    setLoading(true)
-    try {
-      const result = await login(u, p)
-      if (result.success) {
-        navigate("/", { replace: true })
-      } else {
-        setError(result.error || "登录失败")
-      }
-    } catch {
-      setError("系统异常")
     } finally {
       setLoading(false)
     }
@@ -176,36 +151,43 @@ export default function Login() {
             </Button>
           </form>
 
-          {/* Quick Login */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">快速体验</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {quickUsers.map((u) => (
+          {/* ── Quick Login Buttons ── */}
+          <div className="mt-8 pt-6 border-t">
+            <p className="text-xs text-muted-foreground text-center mb-3">快速登录（点击一键登录）</p>
+            <div className="flex gap-2">
               <button
-                key={u.username}
-                onClick={() => quickLogin(u.username, u.password)}
-                className="flex flex-col items-center gap-1.5 rounded-lg border p-3 hover:bg-accent hover:shadow-md transition-all duration-200 group"
+                type="button"
+                onClick={() => { setUsername("chaoguan"); setPassword("666666"); setError(""); }}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 px-2.5 py-2 text-xs font-medium text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
               >
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${u.color.replace('bg-', 'bg-').replace('-500', '-100 dark:')} dark:text-${u.color.replace('bg-', '')}`}>
-                  <User className="h-4 w-4" style={{ color: u.color.replace('bg-', '#') }} />
-                </div>
-                <span className="text-xs font-medium">{u.label}</span>
-                <span className="text-[10px] text-muted-foreground">{u.badge} · @{u.username}</span>
+                🔮 超管
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => { setUsername("guanli"); setPassword("666666"); setError(""); }}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-2.5 py-2 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                🔵 管理员
+              </button>
+              <button
+                type="button"
+                onClick={() => { setUsername("testboss"); setPassword("123456"); setError(""); }}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-2.5 py-2 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+              >
+                🎮 教程体验
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center mt-2">自动填入账号密码，点击「登录」即可</p>
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             还没有账号？{" "}
             <Link to="/register" className="text-primary hover:text-primary/80 font-medium transition-colors">
               立即注册
+            </Link>
+            {"  ·  "}
+            <Link to="/forgot-password" className="text-primary hover:text-primary/80 font-medium transition-colors">
+              忘记密码
             </Link>
           </p>
         </div>

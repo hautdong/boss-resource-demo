@@ -1,20 +1,47 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { useTutorial, TUTORIAL_STEPS } from "../context/TutorialContext"
+import { api } from "../lib/api"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
 import {
   BookOpen, FileText, GraduationCap, CheckCircle2, XCircle,
   AlertCircle, Clock, Trophy, Loader2,
   BookMarked, ChevronLeft, ChevronRight, ChevronDown, Send,
-  Maximize2, Minimize2, ArrowLeft, LogOut, RefreshCw
+  Maximize2, Minimize2, ArrowLeft, LogOut, RefreshCw, Star, Gift
 } from "lucide-react"
 import questions from "../data/examQuestions"
+import ForcedReader from "../components/ForcedReader"
 
 const OPTION_LABELS = ["A", "B", "C", "D", "E", "F"]
 const EXAM_QUESTION_COUNT = 20
-const PASS_SCORE = 60
+const PASS_SCORE = 80
 const EXAM_TIME = 1200 // 20 minutes
+const RETRY_COOLDOWN = 3600000 // 1 hour in ms
+const PASS_REWARD_POINTS = 5
+
+function getPoints(userKey: string): number {
+  // 尝试从 localStorage 读取（离线兜底）
+  try { return Number(localStorage.getItem(`boss-points-${userKey}`)) || 0 } catch { return 0 }
+}
+
+function getLastPointsTime(userKey: string): string {
+  try { return localStorage.getItem(`boss-points-last-time-${userKey}`) || "" } catch { return "" }
+}
+
+function addPoints(amount: number, userKey: string, _userId?: string): number {
+  const current = getPoints(userKey)
+  const total = current + amount
+  localStorage.setItem(`boss-points-${userKey}`, String(total))
+  if (current <= 0 && amount > 0) {
+    localStorage.setItem(`boss-points-first-time-${userKey}`, new Date().toISOString())
+  }
+  localStorage.setItem(`boss-points-last-time-${userKey}`, new Date().toISOString())
+  // 后端积分由 completeExam → api.exam.submit 统一添加，这里只写 localStorage
+  return total
+}
 
 const learningMaterials = [
   {
@@ -45,29 +72,93 @@ const learningMaterials = [
 
 type Phase = "intro" | "study" | "exam" | "result"
 
+// ── 教程步骤进度条组件 ──
+const STEP_IDS = ["register", "study", "exam", "apply", "exchange"] as const
+const STEP_ICONS_MAP: Record<string, string> = { register: "📝", study: "📖", exam: "📝", apply: "📦", exchange: "🎯" }
+
+function TutorialStepsBar({ currentStep }: { currentStep: "study" | "exam" }) {
+  const currentIdx = currentStep === "study" ? 1 : 2
+  return (
+    <div className="px-3 py-1.5 flex items-center gap-0.5 overflow-x-auto border-t border-amber-100/50 dark:border-amber-800/20 bg-gradient-to-r from-amber-50/40 via-transparent to-amber-50/40 dark:from-amber-900/5 dark:to-amber-900/5">
+      {STEP_IDS.map((id, idx) => {
+        const isDone = idx < currentIdx
+        const isCurrent = idx === currentIdx
+        const stepLabel = TUTORIAL_STEPS.find(s => s.id === id)?.title.replace(/[📝📖📦🎯🎉\s]/g, "") || id
+        return (
+          <div key={id} className="flex items-center gap-0.5 shrink-0">
+            {idx > 0 && <ChevronRight className="h-3 w-3 text-gray-300 dark:text-gray-600 shrink-0 mx-0.5" />}
+            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all ${
+              isDone
+                ? "bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
+                : isCurrent
+                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400"
+                : "text-gray-400 dark:text-gray-500"
+            }`}>
+              {isDone ? <CheckCircle2 className="h-3 w-3" /> : <span className="text-[10px]">{STEP_ICONS_MAP[id]}</span>}
+              <span>{stepLabel}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Activation() {
   const navigate = useNavigate()
   const { user, completeExam, logout } = useAuth()
+  const tutorial = useTutorial()
+  const userKey = `${user?.name || "unknown"}-${user?.phone || user?.username || "unknown"}`
 
   // ── Phase control ──
   const [phase, setPhase] = useState<Phase>("intro")
 
   // ── Learning state ──
-  const [activeMaterial, setActiveMaterial] = useState("manual")
-  const [studiedMaterials, setStudiedMaterials] = useState<Set<string>>(new Set())
-  const [leftExpanded, setLeftExpanded] = useState(false)
+  const [studyCompleted, setStudyCompleted] = useState(false)
+  const [adminSkip, setAdminSkip] = useState(() => {
+    try { return localStorage.getItem(`boss-admin-skip-${userKey}`) === "true" } catch { return false }
+  })
+
+  // 持久化 adminSkip 到 localStorage（按用户隔离）
+  useEffect(() => {
+    localStorage.setItem(`boss-admin-skip-${userKey}`, String(adminSkip))
+    if (adminSkip) setStudyCompleted(true)
+  }, [adminSkip, userKey])
+
+  // 当 userKey 就绪后，重新从 localStorage 读取当前用户的 adminSkip
+  useEffect(() => {
+    const stored = localStorage.getItem(`boss-admin-skip-${userKey}`) === "true"
+    if (stored !== adminSkip) setAdminSkip(stored)
+  }, [userKey])
 
   // ── Exam state ──
   const [examAttempt, setExamAttempt] = useState(1)
+  const cooldownStorageKey = `boss-last-failed-time-${userKey}`
+  const [lastFailedTime, setLastFailedTime] = useState(() => {
+    try {
+      return Number(localStorage.getItem(cooldownStorageKey)) || 0
+    } catch { return 0 }
+  })
+  const computeCooldown = (failedTime: number) => {
+    if (!failedTime) return 0
+    const remaining = Math.ceil((RETRY_COOLDOWN - (Date.now() - failedTime)) / 1000)
+    return Math.max(0, remaining)
+  }
+  const [cooldownLeft, setCooldownLeft] = useState(() => computeCooldown(
+    (() => { try { return Number(localStorage.getItem(cooldownStorageKey)) || 0 } catch { return 0 } })()
+  ))
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [showPointsDialog, setShowPointsDialog] = useState(false)
+  const [earnedPoints, setEarnedPoints] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string[]>>({})
   const [submitted, setSubmitted] = useState(false)
   const [score, setScore] = useState(0)
   const [timeLeft, setTimeLeft] = useState(EXAM_TIME)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [showReview, setShowReview] = useState(false)
+  const [showReview, setShowReview] = useState(true)
 
-  const allStudied = studiedMaterials.size === learningMaterials.length
+  const allStudied = studyCompleted
 
   // ── Select 20 random questions from the pool, re-shuffle per attempt ──
   const examQuestions = useMemo(() => {
@@ -82,6 +173,8 @@ export default function Activation() {
   const currentQ = examQuestions[currentIndex]
   const selectedAnswer = currentQ ? (answers[currentQ.id] || []) : []
   const answeredCount = Object.keys(answers).length
+  const currentAnswered = currentQ ? (answers[currentQ.id]?.length || 0) > 0 : false
+  const allAnswered = answeredCount === EXAM_QUESTION_COUNT
 
   // ── Timer ──
   useEffect(() => {
@@ -108,16 +201,54 @@ export default function Activation() {
     }
   }, [timeLeft])
 
-  // ── Handlers ──
-  const toggleStudied = useCallback((id: string) => {
-    setStudiedMaterials((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
+  // Cooldown countdown timer
+  useEffect(() => {
+    if (cooldownLeft <= 0) {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
+      return
+    }
+    cooldownTimerRef.current = setInterval(() => {
+      setCooldownLeft((t) => {
+        if (t <= 1) {
+          if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
+          return 0
+        }
+        return t - 1
+      })
+    }, 1000)
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current)
+    }
+  }, [cooldownLeft])
 
+  // 学习阶段禁止保存/打印/右键
+  useEffect(() => {
+    if (phase !== "study") return
+    const prevent = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        const key = e.key.toLowerCase()
+        // 禁止 Ctrl+P(打印), Ctrl+S(保存), Ctrl+U(查看源码), Ctrl+Shift+I(开发者工具)
+        if (key === "p" || key === "s" || key === "u" || (e.shiftKey && key === "i")) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      }
+      // 禁止 F12
+      if (e.key === "F12") {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    const preventCtx = (e: MouseEvent) => e.preventDefault()
+    window.addEventListener("keydown", prevent, true)
+    document.addEventListener("contextmenu", preventCtx)
+    return () => {
+      window.removeEventListener("keydown", prevent, true)
+      document.removeEventListener("contextmenu", preventCtx)
+    }
+  }, [phase])
+
+  // ── Handlers ──
   const resetExam = useCallback(() => {
     setExamAttempt((prev) => prev + 1)
     setCurrentIndex(0)
@@ -130,6 +261,7 @@ export default function Activation() {
 
   const startExam = () => {
     resetExam()
+    tutorial.goTo("exam")
     setPhase("exam")
   }
 
@@ -160,8 +292,32 @@ export default function Activation() {
     setScore(totalScore)
     setSubmitted(true)
     const passed = totalScore >= PASS_SCORE
+    if (!passed) {
+      const now = Date.now()
+      setLastFailedTime(now)
+      localStorage.setItem(cooldownStorageKey, String(now))
+      setCooldownLeft(Math.floor(RETRY_COOLDOWN / 1000))
+    } else {
+      // 考试通过，奖励积分
+      const newTotal = addPoints(PASS_REWARD_POINTS, userKey, user?.id)
+      setEarnedPoints(newTotal)
+      tutorial.goTo("apply")
+    }
     completeExam(totalScore, passed)
-    setTimeout(() => setPhase("result"), 800)
+    setSubmitted(false)
+    setPhase("result")
+    if (passed) setShowPointsDialog(true)
+  }
+
+  const handleSkipExam = () => {
+    setScore(100)
+    setSubmitted(true)
+    setEarnedPoints(addPoints(PASS_REWARD_POINTS, userKey, user?.id))
+    completeExam(100, true)
+    tutorial.goTo("apply")
+    setSubmitted(false)
+    setPhase("result")
+    setShowPointsDialog(true)
   }
 
   const formatTime = (s: number) =>
@@ -175,12 +331,15 @@ export default function Activation() {
       }).length
     : 0
 
-  const activeMaterialData = learningMaterials.find(m => m.id === activeMaterial)!
-
   // ═══════════════════════════════════════════
   // INTRO PHASE
   // ═══════════════════════════════════════════
+
   if (phase === "intro") {
+    const currentStepId = tutorial.stepInfo?.id || "register"
+    const currentStepIdx = TUTORIAL_STEPS.findIndex(s => s.id === currentStepId)
+    const activeTutorialSteps = TUTORIAL_STEPS.filter(s => s.id !== "complete")
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-6">
         <div className="w-full max-w-xl animate-fade-in">
@@ -192,12 +351,15 @@ export default function Activation() {
             返回登录
           </button>
 
-          <div className="text-center mb-8">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full overflow-hidden mb-6 ring-4 ring-primary/20">
-              <img src="/logo-yaosiji.png" alt="姚司机" className="h-full w-full object-cover" />
+          {/* ── 金手指 + 标题 ── */}
+          <div className="text-center mb-6">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-400/30 mb-4 animate-bounce-soft">
+              <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-white">
+                <path d="M7 11.5C7 10.12 8.12 9 9.5 9C9.67 9 9.83 9.03 10 9.08V5.5C10 4.67 10.67 4 11.5 4C12.33 4 13 4.67 13 5.5V8.5C13 8.5 14 7.5 15.5 7.5C16.33 7.5 17 8.17 17 9V12.5L17 14.5C17 17.54 14.54 20 11.5 20C9.5 20 7.79 18.72 7.09 16.95C6.92 16.54 6.77 16.12 6.64 15.69L5.94 13.58C5.67 12.73 6.04 11.83 6.87 11.52C6.96 11.48 7.05 11.46 7.14 11.45C7.05 11.31 7 11.14 7 11Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
-            <h1 className="text-3xl font-bold gradient-text">姚司机 · 账号激活</h1>
-            <p className="text-muted-foreground mt-2">
+            <h1 className="text-2xl font-bold gradient-text">新手引导 · 账号激活</h1>
+            <p className="text-muted-foreground mt-1 text-sm">
               欢迎你，<span className="font-semibold text-foreground">{user?.name}</span>！
             </p>
             <Badge variant="outline" className="mt-2 border-amber-400 text-amber-600 dark:text-amber-400">
@@ -206,42 +368,128 @@ export default function Activation() {
             </Badge>
           </div>
 
-          <div className="space-y-4">
-            <div className="rounded-xl border bg-card p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30">
-                  <BookOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+          {/* ── 5步教程进度条 ── */}
+          <div className="rounded-xl border bg-card p-4 mb-4">
+            <p className="text-xs font-medium text-muted-foreground mb-3 text-center">📋 新手引导进度</p>
+            <div className="flex items-center justify-between">
+              {activeTutorialSteps.map((step, idx) => {
+                const isDone = idx < currentStepIdx
+                const isCurrent = idx === currentStepIdx
+                return (
+                  <div key={step.id} className="flex flex-col items-center gap-1.5 flex-1">
+                    {idx > 0 && (
+                      <div className="absolute -translate-y-[-14px] w-[calc(100%/5-28px)]" style={{ display: "none" }} />
+                    )}
+                    <div className={`relative flex h-9 w-9 items-center justify-center rounded-full text-sm transition-all ${
+                      isDone
+                        ? "bg-emerald-500 text-white shadow-sm shadow-emerald-400/30"
+                        : isCurrent
+                        ? "bg-gradient-to-br from-amber-300 to-yellow-500 text-white shadow-md shadow-amber-400/40 animate-pulse ring-2 ring-amber-300"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                    }`}>
+                      {isDone ? <CheckCircle2 className="h-4 w-4" /> : STEP_ICONS_MAP[step.id]}
+                    </div>
+                    {idx < activeTutorialSteps.length - 1 && (
+                      <div className={`h-0.5 flex-1 w-full -mb-1 transition-all ${
+                        isDone ? "bg-emerald-300" : "bg-gray-200 dark:bg-gray-700"
+                      }`} style={{ width: "calc(100% + 8px)" }} />
+                    )}
+                    <span className={`text-[10px] font-medium transition-colors ${
+                      isDone ? "text-emerald-600 dark:text-emerald-400" :
+                      isCurrent ? "text-amber-600 dark:text-amber-400" :
+                      "text-gray-400 dark:text-gray-500"
+                    }`}>
+                      {step.title.replace(/[📝📖📦🎯🎉\s]/g, "")}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex items-center mt-1 px-1">
+              {activeTutorialSteps.map((_, idx) => (
+                <div key={idx} className="flex-1 flex items-center">
+                  <div className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
+                    idx < currentStepIdx ? "bg-emerald-400" :
+                    idx === currentStepIdx ? "bg-amber-400" :
+                    "bg-gray-200 dark:bg-gray-700"
+                  }`} />
+                  {idx < activeTutorialSteps.length - 1 && <div className="w-1" />}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── 当前步骤引导卡片 ── */}
+          <div className="rounded-xl border-2 border-amber-300/60 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 shadow">
+                <span className="text-sm">{STEP_ICONS_MAP[currentStepId]}</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                  {TUTORIAL_STEPS[currentStepIdx]?.title || "开始引导"}
+                </h3>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  {TUTORIAL_STEPS[currentStepIdx]?.desc || "点击下方按钮开始账号激活流程"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── 步骤说明卡片 ── */}
+          <div className="space-y-3">
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                  currentStepIdx >= 1 
+                    ? "bg-emerald-100 dark:bg-emerald-900/30 ring-2 ring-emerald-300" 
+                    : "bg-indigo-100 dark:bg-indigo-900/30"
+                }`}>
+                  <BookOpen className={`h-5 w-5 ${
+                    currentStepIdx >= 1 ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"
+                  }`} />
                 </div>
                 <div>
-                  <h3 className="font-semibold">第一步：学习资料</h3>
-                  <p className="text-sm text-muted-foreground">阅读 3 份培训资料，标记为已学习</p>
+                  <h3 className="font-semibold text-sm">第一步：学习资料</h3>
+                  <p className="text-xs text-muted-foreground">阅读 3 份培训资料，标记为已学习</p>
                 </div>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-1.5">
                 {learningMaterials.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <m.icon className={`h-4 w-4 ${m.color}`} />
+                  <div key={m.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <m.icon className={`h-3.5 w-3.5 ${m.color}`} />
                     <span>{m.title}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl border bg-card p-5">
+            <div className="rounded-xl border bg-card p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">第二步：闭卷考试</h3>
-                  <p className="text-sm text-muted-foreground">
-                    从题库随机抽 20 题 · 满分 100 分 · 通过线 60 分 · 限时 20 分钟
+                  <h3 className="font-semibold text-sm">第二步：闭卷考试</h3>
+                  <p className="text-xs text-muted-foreground">
+                    随机抽 20 题 · 满分 100 分 · 通过线 80 分 · 限时 20 分钟
                   </p>
                 </div>
               </div>
             </div>
 
-            <Button variant="primary" className="w-full" size="lg" onClick={() => setPhase("study")}>
+            <Button
+              id="enter-study-btn"
+              variant="primary"
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                if (tutorial.state.enabled && tutorial.state.step < 1) {
+                  tutorial.goTo("study")
+                }
+                setPhase("study")
+              }}
+            >
               <BookOpen className="h-5 w-5 mr-2" />
               进入学习与考试
             </Button>
@@ -279,13 +527,31 @@ export default function Activation() {
             </div>
 
             <h2 className={`text-xl sm:text-2xl font-bold mb-1 ${passed ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
-              {passed ? "恭喜，考试通过！账号已激活 🎉" : "考试未通过"}
+              {passed ? "✅ 账号激活成功！" : "❌ 账号激活失败"}
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
               {passed
-                ? "你的账号已成功激活，可以进入系统使用了"
-                : `得分 ${score}/100，未达到通过线 ${PASS_SCORE} 分`}
+                ? `你的账号已成功激活（${score}分），可以进入系统使用了`
+                : `得分 ${score}/100，未达到通过线 ${PASS_SCORE} 分，账号激活失败`}
             </p>
+            {!passed && (
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 mb-4 max-w-sm mx-auto text-sm text-left">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-700 dark:text-amber-300">⚠️ 重要提示</p>
+                    <p className="text-amber-600 dark:text-amber-400 text-sm mt-1">
+                      若第一次考试不通过，后续考试都需要间隔 <strong>1 小时</strong> 才能再次参加。请认真学习、仔细作答！
+                    </p>
+                    {cooldownLeft > 0 && (
+                      <p className="text-amber-600 dark:text-amber-400 text-sm mt-1 font-mono">
+                        还需等待: {Math.floor(cooldownLeft / 60)} 分 {cooldownLeft % 60} 秒
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Score display */}
             <div className="mb-4">
@@ -293,10 +559,16 @@ export default function Activation() {
                 <span className="text-4xl sm:text-5xl font-bold gradient-text">{score}</span>
                 <span className="text-base sm:text-lg text-muted-foreground">/ 100</span>
               </div>
-              <div className="h-3 rounded-full bg-muted overflow-hidden max-w-sm mx-auto">
+              <div className="h-3 rounded-full bg-muted overflow-hidden max-w-sm mx-auto relative">
                 <div
                   className={`h-full rounded-full transition-all duration-1000 ${passed ? "bg-emerald-500" : "bg-destructive"}`}
                   style={{ width: `${Math.min(pct, 100)}%` }}
+                />
+                {/* Pass threshold marker */}
+                <div
+                  className="absolute top-0 h-full w-0.5 bg-amber-400/80"
+                  style={{ left: `${PASS_SCORE}%` }}
+                  title={`通过线 ${PASS_SCORE} 分`}
                 />
               </div>
               <p className="text-sm text-muted-foreground mt-2">正确率 {pct}%</p>
@@ -330,15 +602,23 @@ export default function Activation() {
               </div>
             ) : (
               <div className="space-y-2 max-w-sm mx-auto">
-                <Button variant="destructive" className="w-full" onClick={startExam}>
-                  <RefreshCw className="h-5 w-5 mr-2" />重新考试（换新题）
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => {
-                  setPhase("study")
-                  setStudiedMaterials(new Set())
-                  resetExam()
-                }}>
-                  <BookOpen className="h-5 w-5 mr-2" />重新学习
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  disabled={cooldownLeft > 0}
+                  onClick={() => {
+                    setPhase("study")
+                    setStudyCompleted(false)
+                    resetExam()
+                  }}
+                >
+                  {cooldownLeft > 0 ? (
+                    <><Clock className="h-5 w-5 mr-2 animate-pulse" />
+                    还需等待 {Math.floor(cooldownLeft / 60)}:{(cooldownLeft % 60).toString().padStart(2, "0")}
+                    </>
+                  ) : (
+                    <><BookOpen className="h-5 w-5 mr-2" />重新学习</>
+                  )}
                 </Button>
                 <Button variant="ghost" className="w-full" onClick={() => { logout(); navigate("/login", { replace: true }) }}>
                   <LogOut className="h-4 w-4 mr-2" />返回登录
@@ -351,23 +631,29 @@ export default function Activation() {
           {wrongQuestions.length > 0 && (
             <div className="rounded-2xl border bg-card overflow-hidden">
               <button
-                onClick={() => setShowReview(!showReview)}
-                className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-accent/50 transition-colors"
+                onClick={() => passed && setShowReview(!showReview)}
+                className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${
+                  passed ? "hover:bg-accent/50 cursor-pointer" : "cursor-default"
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">
                     <XCircle className="h-4 w-4 text-destructive" />
                   </div>
                   <div className="text-left">
-                    <h3 className="font-semibold text-sm">错题回顾</h3>
+                    <h3 className="font-semibold text-sm">
+                      {passed ? "错题回顾" : "错题解析（请认真复习以下题目）"}
+                    </h3>
                     <p className="text-xs text-muted-foreground">
-                      {wrongQuestions.length} 题答错，点击查看正确答案
+                      {wrongQuestions.length} 题答错{passed ? "，点击查看正确答案" : "，以下是正确答案和解析"}
                     </p>
                   </div>
                 </div>
-                <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
-                  showReview ? "rotate-180" : ""
-                }`} />
+                {passed && (
+                  <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
+                    showReview ? "rotate-180" : ""
+                  }`} />
+                )}
               </button>
 
               {showReview && (
@@ -447,28 +733,84 @@ export default function Activation() {
             </div>
           )}
         </div>
+
+        {/* 积分奖励弹窗 */}
+        <Dialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
+          <DialogContent className="text-center max-w-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 mb-4 shadow-lg animate-bounce-soft">
+              <Trophy className="h-8 w-8 text-white" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-center text-xl animate-fade-in">🎉 恭喜！账号激活成功</DialogTitle>
+              <DialogDescription className="text-center pt-2 space-y-3">
+                <p className="text-muted-foreground">
+                  考试成绩 <span className="font-bold text-foreground">{score} 分</span>，已通过考试！
+                </p>
+                <div className="rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border border-amber-200 dark:border-amber-800 p-4 animate-scale-in">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Star className="h-5 w-5 text-amber-500 fill-amber-500 animate-pulse" />
+                    <span className="text-lg font-bold text-amber-700 dark:text-amber-400">+{PASS_REWARD_POINTS} 积分</span>
+                  </div>
+                  <p className="text-sm text-amber-600 dark:text-amber-400">
+                    恭喜获得 {PASS_REWARD_POINTS} 积分，可用于后续道具兑换！
+                  </p>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <Button
+                variant="primary"
+                className="w-full"
+                size="lg"
+                onClick={() => setShowPointsDialog(false)}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" />确定
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
 
   // ═══════════════════════════════════════════
-  // STUDY PHASE - Left: PDF Viewer | Right: Exam prep
+  // STUDY PHASE - Forced Reader with timing enforcement
   // ═══════════════════════════════════════════
   if (phase === "study") {
     return (
       <div className="h-screen flex flex-col bg-background overflow-hidden">
         <header className="shrink-0 border-b bg-background/95 backdrop-blur-xl z-20">
           <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden">
-              <img src="/logo-yaosiji.png" alt="姚司机" className="h-full w-full object-cover" />
-            </div>
-            <span className="font-semibold text-sm">学习资料</span>
+            <div className="flex items-center gap-3">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden">
+                <img src="/logo-yaosiji.png" alt="姚司机" className="h-full w-full object-cover" />
+              </div>
+              <span className="font-semibold text-sm">
+                学习资料
+              </span>
               <Badge variant="outline" className="text-xs">
                 {user?.name} ({user?.roleLabel})
               </Badge>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => setAdminSkip((prev) => {
+                  if (!prev) {
+                    setCooldownLeft(0)
+                    setLastFailedTime(0)
+                    localStorage.removeItem(cooldownStorageKey)
+                  }
+                  return !prev
+                })}
+                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  adminSkip
+                    ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700"
+                    : "text-muted-foreground hover:text-foreground border-transparent hover:border-border"
+                }`}
+                title={adminSkip ? "关闭跳过模式" : "开启跳过模式"}
+              >
+                ⚡ {adminSkip ? "跳过中" : "跳过"}
+              </button>
               <button
                 onClick={() => { logout(); navigate("/login", { replace: true }) }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -477,131 +819,51 @@ export default function Activation() {
                 <LogOut className="h-3.5 w-3.5" />
                 退出
               </button>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground">学习进度</span>
-                <div className="flex gap-1">
-                  {learningMaterials.map(m => (
-                    <div
-                      key={m.id}
-                      className={`h-2 w-6 rounded-full transition-colors ${
-                        studiedMaterials.has(m.id) ? "bg-emerald-500" : "bg-muted"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-muted-foreground">{studiedMaterials.size}/{learningMaterials.length}</span>
-              </div>
             </div>
           </div>
+          {/* 教程步骤指示器 */}
+          <TutorialStepsBar currentStep="study" />
         </header>
 
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* ━━ LEFT: PDF Viewer ━━ */}
-          <div
-            className={`relative flex flex-col border-r bg-card transition-all duration-300 ${
-              leftExpanded ? "lg:w-[65%]" : "lg:w-[50%]"
-            } flex-1 lg:flex-none min-h-[45vh] lg:min-h-0`}
-          >
-            {/* Material Tabs */}
-            <div className="shrink-0 border-b bg-muted/30">
-              <div className="flex items-center px-2">
-                {learningMaterials.map((m) => {
-                  const isActive = activeMaterial === m.id
-                  const isStudied = studiedMaterials.has(m.id)
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setActiveMaterial(m.id)}
-                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
-                        isActive
-                          ? "border-primary text-primary bg-background"
-                          : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/50"
-                      }`}
-                    >
-                      <m.icon className={`h-4 w-4 ${m.color}`} />
-                      <span className="truncate max-w-[120px]">{m.title}</span>
-                      {isStudied && (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* PDF Viewer */}
-            <div className="flex-1 relative overflow-hidden">
-              <iframe
-                key={activeMaterial}
-                src={activeMaterialData.file}
-                className="absolute inset-0 w-full h-full border-0"
-                title={activeMaterialData.title}
-              />
-              <button
-                onClick={() => setLeftExpanded(!leftExpanded)}
-                className="absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-accent transition-colors"
-                title={leftExpanded ? "收起" : "展开"}
-              >
-                {leftExpanded
-                  ? <Minimize2 className="h-4 w-4" />
-                  : <Maximize2 className="h-4 w-4" />
-                }
-              </button>
-            </div>
-
-            {/* Bottom: Mark as studied */}
-            <div className="shrink-0 border-t bg-muted/30 p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {learningMaterials.map(m => {
-                    const isStudied = studiedMaterials.has(m.id)
-                    const isActive = activeMaterial === m.id
-                    return (
-                      <button
-                        key={m.id}
-                        onClick={() => setActiveMaterial(m.id)}
-                        className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full transition-all ${
-                          isStudied
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            : isActive
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground hover:bg-accent"
-                        }`}
-                      >
-                        {isStudied ? <CheckCircle2 className="h-3 w-3" /> : <m.icon className="h-3 w-3" />}
-                        <span className="hidden sm:inline">{m.title}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                <Button
-                  variant={studiedMaterials.has(activeMaterial) ? "outline" : "primary"}
-                  size="sm"
-                  className={studiedMaterials.has(activeMaterial) ? "text-emerald-600 border-emerald-300 dark:border-emerald-700" : ""}
-                  onClick={() => toggleStudied(activeMaterial)}
-                >
-                  {studiedMaterials.has(activeMaterial) ? (
-                    <><CheckCircle2 className="h-4 w-4 mr-1" />已学习</>
-                  ) : (
-                    <><BookMarked className="h-4 w-4 mr-1" />标记已学习</>
-                  )}
-                </Button>
-              </div>
-            </div>
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden" id="study-content-wrapper">
+          {/* ━━ LEFT: Forced Reader ━━ */}
+          <div className="flex-1 lg:flex-[2] overflow-y-auto p-4 lg:p-6">
+            <ForcedReader
+              adminSkip={adminSkip}
+              userId={userKey}
+              onAllComplete={() => setStudyCompleted(true)}
+            />
           </div>
 
           {/* ━━ RIGHT: Exam Prep ━━ */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden border-l bg-muted/20">
             <div className="flex-1 flex items-center justify-center p-6">
-              <div className="w-full max-w-md animate-fade-in text-center">
+              <div className="w-full max-w-md text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-6">
                   <GraduationCap className="h-8 w-8 text-primary" />
                 </div>
 
-                <h2 className="text-xl font-bold mb-2">📝 闭卷考试</h2>
-                <p className="text-sm text-muted-foreground mb-6">
-                  请在左侧阅读并学习全部资料，标记完成后即可开始考试
+                <h2 className="text-xl font-bold mb-2">
+                  {studyCompleted ? "✅ 学习完成" : "📖 正在学习中"}
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {studyCompleted
+                    ? "你已完成所有学习资料，可以开始考试了。"
+                    : "请按顺序完成所有资料的阅读，完成后即可解锁考试。"}
                 </p>
+
+                {/* 考试规则提示 */}
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 mb-4 text-left">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-semibold text-amber-700 dark:text-amber-300 mb-1">⚠️ 考试须知</p>
+                      <p className="text-amber-600 dark:text-amber-400">
+                        若考试不通过，再次考试需间隔 <strong>1 小时</strong>，且题目会刷新，请认真学习资料，仔细作答！
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="rounded-xl bg-muted/50 p-4 mb-6 text-sm space-y-2 text-left">
                   <div className="flex justify-between">
@@ -618,7 +880,7 @@ export default function Activation() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">通过线</span>
-                    <span className="font-semibold text-emerald-600">60 分</span>
+                    <span className="font-semibold text-emerald-600">80 分</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">考试模式</span>
@@ -626,28 +888,41 @@ export default function Activation() {
                   </div>
                 </div>
 
-                {!allStudied && (
+                {!studyCompleted && (
                   <div className="flex items-center gap-2 justify-center text-amber-600 dark:text-amber-400 text-sm mb-4">
                     <AlertCircle className="h-4 w-4" />
-                    还需学习 {learningMaterials.length - studiedMaterials.size} 份资料
+                    请先完成所有资料的学习
                   </div>
                 )}
 
                 <Button
+                  id="start-exam-btn"
                   variant="primary"
                   size="lg"
                   className="w-full"
-                  disabled={!allStudied}
+                  disabled={!studyCompleted || cooldownLeft > 0}
                   onClick={startExam}
                 >
-                  {allStudied ? (
+                  {cooldownLeft > 0 ? (
+                    <><Clock className="h-5 w-5 mr-2 animate-pulse" />
+                    还需等待 {Math.floor(cooldownLeft / 60)}:{(cooldownLeft % 60).toString().padStart(2, "0")}</>
+                  ) : studyCompleted ? (
                     <><GraduationCap className="h-5 w-5 mr-2" />开始考试</>
                   ) : (
                     <><BookOpen className="h-5 w-5 mr-2" />请先完成资料学习</>
                   )}
                 </Button>
 
-                {allStudied && (
+                {cooldownLeft > 0 && (
+                  <div className="flex items-start gap-2 mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-left">
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      上次考试未通过，需等待 1 小时后才能再次参加。请利用这段时间认真复习资料。
+                    </p>
+                  </div>
+                )}
+
+                {studyCompleted && (
                   <p className="text-xs text-muted-foreground mt-3">
                     考试开始后，学习资料将不可查看（闭卷）
                   </p>
@@ -718,12 +993,24 @@ export default function Activation() {
             </div>
 
             <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSkipExam}
+              className="text-xs sm:text-sm px-2 sm:px-3 text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
+              title="跳过考试，直接激活成功"
+            >
+              跳过考试
+            </Button>
+
+            <Button
               variant="destructive"
               size="sm"
+              disabled={!allAnswered}
               onClick={handleSubmitExam}
               className="text-xs sm:text-sm px-2 sm:px-3"
+              title={!allAnswered ? `还有 ${EXAM_QUESTION_COUNT - answeredCount} 题未答` : ""}
             >
-              <Send className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />交卷
+              <Send className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-1" />{allAnswered ? "交卷" : `还有${EXAM_QUESTION_COUNT - answeredCount}题`}
             </Button>
           </div>
         </div>
@@ -734,27 +1021,30 @@ export default function Activation() {
             style={{ width: `${((currentIndex + 1) / EXAM_QUESTION_COUNT) * 100}%` }}
           />
         </div>
+        <TutorialStepsBar currentStep="exam" />
       </header>
 
       {/* ── Exam Body ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden" id="exam-content-area">
         {/* Question Navigation - desktop: left sidebar */}
         <div className="hidden sm:flex flex-col w-[60px] md:w-[72px] lg:w-[88px] shrink-0 border-r bg-muted/20 p-2">
           <div className="grid grid-cols-3 gap-1.5 overflow-y-auto">
             {examQuestions.map((q, i) => {
               const isAns = !!answers[q.id]
               const isCur = i === currentIndex
+              const canJump = isAns || isCur || i < currentIndex
               return (
                 <button
                   key={q.id}
-                  onClick={() => setCurrentIndex(i)}
+                  onClick={() => canJump && setCurrentIndex(i)}
+                  disabled={!canJump}
                   className={`h-7 md:h-8 rounded-md text-xs font-medium transition-all ${
                     isCur
                       ? "bg-primary text-primary-foreground shadow-sm scale-110 ring-2 ring-primary/30"
                       : isAns
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
-                      : "bg-muted text-muted-foreground hover:bg-accent border border-transparent"
-                  }`}
+                      : "bg-muted text-muted-foreground border border-transparent"
+                  } ${!canJump ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                 >
                   {i + 1}
                 </button>
@@ -778,17 +1068,19 @@ export default function Activation() {
           {examQuestions.map((q, i) => {
             const isAns = !!answers[q.id]
             const isCur = i === currentIndex
+            const canJump = isAns || isCur || i < currentIndex
             return (
               <button
                 key={q.id}
-                onClick={() => setCurrentIndex(i)}
+                onClick={() => canJump && setCurrentIndex(i)}
+                disabled={!canJump}
                 className={`h-7 min-w-[28px] shrink-0 rounded-md text-xs font-medium transition-all ${
                   isCur
                     ? "bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30"
                     : isAns
                     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
                     : "bg-muted text-muted-foreground border border-transparent"
-                }`}
+                } ${!canJump ? "opacity-40" : ""}`}
               >
                 {i + 1}
               </button>
@@ -887,24 +1179,38 @@ export default function Activation() {
               </div>
 
               {currentIndex === EXAM_QUESTION_COUNT - 1 ? (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleSubmitExam}
-                >
-                  <Send className="h-4 w-4 mr-1" />交卷
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSkipExam}
+                    className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/20"
+                  >
+                    跳过考试
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={!allAnswered}
+                    onClick={handleSubmitExam}
+                    title={!allAnswered ? `还有 ${EXAM_QUESTION_COUNT - answeredCount} 题未答` : ""}
+                  >
+                    <Send className="h-4 w-4 mr-1" />{allAnswered ? "交卷" : `还有${EXAM_QUESTION_COUNT - answeredCount}题`}
+                  </Button>
+                </div>
               ) : (
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={!currentAnswered}
                   onClick={() =>
                     setCurrentIndex((i) =>
                       Math.min(EXAM_QUESTION_COUNT - 1, i + 1)
                     )
                   }
+                  title={!currentAnswered ? "请先作答本题" : ""}
                 >
-                  下一题<ChevronRight className="h-4 w-4 ml-1" />
+                  {!currentAnswered ? "请先作答" : <><span>下一题</span><ChevronRight className="h-4 w-4 ml-1" /></>}
                 </Button>
               )}
             </div>

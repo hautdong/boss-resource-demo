@@ -1,43 +1,54 @@
 import { Users, Server, Activity, AlertTriangle } from "lucide-react"
 import { StatCard } from "../components/StatCard"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
+import { EditableField } from "../components/EditableField"
+import { useNavigate } from "react-router-dom"
+import { useAuth } from "../context/AuthContext"
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "super_admin" || user?.role === "admin"
+  const pendingCount = (() => { try { return JSON.parse(localStorage.getItem("boss-resource-approvals") || "[]").length } catch { return 0 } })()
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight gradient-text">工作台</h1>
-        <p className="text-sm text-muted-foreground mt-1">欢迎回来，这里是 BOSS 资源分配系统的管理总览</p>
+        <h1 className="text-2xl font-bold tracking-tight gradient-text">
+          <EditableField text="工作台" storageKey="dashboard_title" as="span" />
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          <EditableField text="欢迎回来，这里是 BOSS 资源分配系统的管理总览" storageKey="dashboard_subtitle" />
+        </p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="注册用户"
-          value="1,284"
-          change="较上月 +12.5%"
+          title={<EditableField text="注册用户" storageKey="stat_title_1" />}
+          value={<EditableField text="1,284" storageKey="stat_value_1" />}
+          change={<EditableField text="较上月 +12.5%" storageKey="stat_change_1" />}
           trend="up"
           icon={<Users className="h-5 w-5" />}
         />
         <StatCard
-          title="活跃资源"
-          value="486"
-          change="较上月 +8.2%"
+          title={<EditableField text="活跃资源" storageKey="stat_title_2" />}
+          value={<EditableField text="486" storageKey="stat_value_2" />}
+          change={<EditableField text="较上月 +8.2%" storageKey="stat_change_2" />}
           trend="up"
           icon={<Server className="h-5 w-5" />}
         />
         <StatCard
-          title="本月申请"
-          value="93"
-          change="较上月 -3.1%"
+          title={<EditableField text="本月申请" storageKey="stat_title_3" />}
+          value={<EditableField text="93" storageKey="stat_value_3" />}
+          change={<EditableField text="较上月 -3.1%" storageKey="stat_change_3" />}
           trend="down"
           icon={<Activity className="h-5 w-5" />}
         />
         <StatCard
-          title="成本预警"
-          value="2"
-          change="50万剩余不足10%"
+          title={<EditableField text="成本预警" storageKey="stat_title_4" />}
+          value={<EditableField text="2" storageKey="stat_value_4" />}
+          change={<EditableField text="50万剩余不足10%" storageKey="stat_change_4" />}
           trend="down"
           icon={<AlertTriangle className="h-5 w-5" />}
         />
@@ -53,13 +64,14 @@ export default function Dashboard() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "新增账号", desc: "注册新用户", color: "bg-indigo-500" },
-                { label: "资源审批", desc: "待审批 12 条", color: "bg-amber-500" },
-                { label: "数据导出", desc: "导出统计报表", color: "bg-emerald-500" },
-                { label: "成本台账", desc: "查看成本明细", color: "bg-violet-500" },
+                { label: "新增账号", desc: "注册新用户", color: "bg-indigo-500", path: "/management" },
+                { label: "资源审批", desc: isAdmin ? `待审批 ${pendingCount} 条` : "查看资源", color: "bg-amber-500", path: "/resources" },
+                { label: "数据导出", desc: "导出统计报表", color: "bg-emerald-500", path: "/statistics" },
+                { label: "成本台账", desc: "查看成本明细", color: "bg-violet-500", path: "/resources" },
               ].map((item, i) => (
                 <button
                   key={i}
+                  onClick={() => navigate(item.path)}
                   className="group flex flex-col items-start gap-1 rounded-lg border p-4 text-left hover:shadow-md transition-all duration-200 hover:scale-[1.02]"
                 >
                   <div className={`h-2 w-8 rounded-full ${item.color} opacity-80`} />

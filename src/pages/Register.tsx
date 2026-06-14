@@ -1,31 +1,51 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { matchRoleByName, getRoleLabel, getRoleColorClass, getDefaultDepartment } from "../lib/roleConfig"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
+import { Select } from "../components/ui/select"
 import { Badge } from "../components/ui/badge"
-import { Shield, ArrowLeft, Loader2, Check, Info, Phone } from "lucide-react"
+import { Shield, ArrowLeft, Loader2, Check, Phone, UserRound, Building2, KeyRound, Eye, EyeOff } from "lucide-react"
+
+const departmentOptions = [
+  { value: "", label: "请选择所在部门" },
+  { value: "事业部", label: "事业部" },
+  { value: "运营部", label: "运营部" },
+  { value: "公关部", label: "公关部" },
+  { value: "产品部", label: "产品部" },
+  { value: "监管部", label: "监管部" },
+  { value: "管培生", label: "管培生" },
+  { value: "培训部", label: "培训部" },
+  { value: "财务部", label: "财务部" },
+  { value: "行政部", label: "行政部" },
+  { value: "总经办", label: "总经办" },
+  { value: "组织部", label: "组织部" },
+]
 
 export default function Register() {
   const [name, setName] = useState("")
-  const [username, setUsername] = useState("")
   const [phone, setPhone] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [department, setDepartment] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
 
+  // 根据输入姓名实时匹配角色
+  const matchedRole = useMemo(() => matchRoleByName(name), [name])
+  const roleLabel = useMemo(() => getRoleLabel(matchedRole), [matchedRole])
+  const roleColorClass = useMemo(() => getRoleColorClass(matchedRole), [matchedRole])
+  const effectiveDepartment = department || getDefaultDepartment(matchedRole)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
-    if (!/^[a-zA-Z0-9_]{2,20}$/.test(username)) {
-      setError("用户名仅支持字母、数字、下划线，长度 2-20 位")
-      return
-    }
-    if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
       setError("请输入正确的 11 位手机号")
       return
     }
@@ -36,7 +56,7 @@ export default function Register() {
 
     setLoading(true)
     try {
-      const result = await register({ name, username, phone, password })
+      const result = await register({ name, username: phone, phone, password, department })
       if (result.success) {
         setSuccess(true)
         setTimeout(() => navigate("/activation", { replace: true }), 1500)
@@ -87,24 +107,14 @@ export default function Register() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Info className="h-4 w-4" />
-              预设账号（可直接登录）
-            </h3>
-            {[
-              { name: "林伶俐", role: "超级管理员", badge: "超管" as const, color: "bg-violet-500", username: "lll" },
-              { name: "林锦超", role: "管理员", badge: "管理" as const, color: "bg-blue-500", username: "ljc" },
-              { name: "黄文凤", role: "成员BOSS", badge: "成员" as const, color: "bg-emerald-500", username: "hwf" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 text-sm">
-                <div className={`h-2 w-2 rounded-full ${item.color}`} />
-                <Badge className="bg-white/10 text-white border-0">{item.badge}</Badge>
-                <span className="text-white font-medium">{item.name}</span>
-                <span className="text-indigo-200 text-xs">{item.role}</span>
-                <span className="text-indigo-300 text-xs ml-auto">@{item.username}</span>
-              </div>
-            ))}
+          {/* 角色说明 */}
+          <div className="space-y-3">
+            <p className="text-white/80 text-sm font-medium">注册说明</p>
+            <div className="space-y-2 text-indigo-200 text-sm">
+              <p>• 系统根据您的真实姓名自动分配角色</p>
+              <p>• 目前所有人注册后统一为 <span className="text-white font-medium">成员BOSS</span></p>
+              <p>• 注册后需完成激活考试方可使用系统</p>
+            </div>
           </div>
         </div>
 
@@ -126,7 +136,7 @@ export default function Register() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden mb-4 lg:hidden">
               <img src="/logo-yaosiji.png" alt="姚司机" className="h-full w-full object-cover" />
             </div>
-            <h2 className="text-2xl font-bold gradient-text">姚司机 · 创建账号</h2>
+            <h2 className="text-2xl font-bold gradient-text">创建账号</h2>
             <p className="text-muted-foreground mt-2">填写基本信息完成注册</p>
           </div>
 
@@ -137,53 +147,85 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* 所在部门 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">真实姓名</label>
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                所在部门 <span className="text-destructive">*</span>
+              </label>
+              <Select
+                options={departmentOptions}
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* 真实姓名 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <UserRound className="h-4 w-4 text-muted-foreground" />
+                真实姓名 <span className="text-destructive">*</span>
+              </label>
               <Input
                 placeholder="请输入您的真实姓名"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-              <p className="text-xs text-muted-foreground">例如：黄文凤</p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">登录用户名</label>
-              <Input
-                placeholder="英文或字母组合，2-20位"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                pattern="[a-zA-Z0-9_]{2,20}"
-              />
-              <p className="text-xs text-muted-foreground">仅支持字母、数字、下划线，用于登录系统</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">手机号</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="请输入11位手机号"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
-                  className="pl-10"
-                />
+            {/* 角色预览 */}
+            {name.trim() && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3 animate-fade-in-down">
+                <p className="text-xs font-medium text-muted-foreground">📋 系统将为您分配</p>
+                <div className="flex items-center gap-3">
+                  <Badge className={roleColorClass}>{roleLabel}</Badge>
+                  <span className="text-sm text-muted-foreground">
+                    所属 <span className="font-medium text-foreground">{effectiveDepartment}</span>
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">选填，用于账号安全验证</p>
+            )}
+
+            {/* 手机号 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                手机号 <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="请输入11位手机号"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                required
+              />
+              <p className="text-xs text-muted-foreground">手机号将作为您的登录账号</p>
             </div>
 
+            {/* 密码 */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">登录密码</label>
-              <Input
-                type="password"
-                placeholder="至少 6 位密码"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <KeyRound className="h-4 w-4 text-muted-foreground" />
+                登录密码 <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="至少 6 位密码"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <Button type="submit" variant="primary" className="w-full h-12 text-base" disabled={loading}>

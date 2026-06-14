@@ -1,39 +1,29 @@
 import * as React from "react"
-import { Moon, Sun, Monitor } from "lucide-react"
+import { Moon, Sun } from "lucide-react"
 import { cn } from "../lib/utils"
 
-type Theme = "light" | "dark" | "system"
+type Theme = "light" | "dark"
 
 export function ThemeToggle() {
   const [theme, setTheme] = React.useState<Theme>(() => {
     const stored = localStorage.getItem("boss-resource-theme")
-    if (stored === "dark" || stored === "light" || stored === "system") return stored
-    return "system"
+    if (stored === "dark" || stored === "light") return stored
+    return "light"
   })
 
   React.useEffect(() => {
     const root = document.documentElement
-    
     if (theme === "dark") {
       root.classList.add("dark")
-    } else if (theme === "light") {
-      root.classList.remove("dark")
     } else {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
-      if (prefersDark) {
-        root.classList.add("dark")
-      } else {
-        root.classList.remove("dark")
-      }
+      root.classList.remove("dark")
     }
-    
     localStorage.setItem("boss-resource-theme", theme)
   }, [theme])
 
   const themes: { value: Theme; icon: React.ReactNode; label: string }[] = [
     { value: "light", icon: <Sun className="h-4 w-4" />, label: "浅色" },
     { value: "dark", icon: <Moon className="h-4 w-4" />, label: "深色" },
-    { value: "system", icon: <Monitor className="h-4 w-4" />, label: "系统" },
   ]
 
   return (

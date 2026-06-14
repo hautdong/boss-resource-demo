@@ -2,9 +2,9 @@ import { cn } from "../lib/utils"
 import { TrendingUp, TrendingDown } from "lucide-react"
 
 interface StatCardProps {
-  title: string
-  value: string
-  change?: string
+  title: string | React.ReactNode
+  value: string | React.ReactNode
+  change?: string | React.ReactNode
   trend?: "up" | "down"
   icon: React.ReactNode
   className?: string
