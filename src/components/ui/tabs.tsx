@@ -19,6 +19,7 @@ interface TabsTriggerProps {
   className?: string
   children: React.ReactNode
   disabled?: boolean
+  id?: string
 }
 
 interface TabsContentProps {
@@ -67,12 +68,13 @@ function TabsList({ className, children }: TabsListProps) {
   )
 }
 
-function TabsTrigger({ value, className, children, disabled }: TabsTriggerProps) {
+function TabsTrigger({ value, className, children, disabled, id }: TabsTriggerProps) {
   const context = React.useContext(TabsContext)
   const isActive = context.value === value
 
   return (
     <button
+      id={id}
       disabled={disabled}
       onClick={() => context.onValueChange?.(value)}
       className={cn(

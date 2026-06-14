@@ -281,7 +281,7 @@ export default function Activation() {
     })
   }
 
-  const handleSubmitExam = () => {
+  const handleSubmitExam = async () => {
     let totalScore = 0
     for (const q of examQuestions) {
       const ua = answers[q.id]
@@ -298,22 +298,21 @@ export default function Activation() {
       localStorage.setItem(cooldownStorageKey, String(now))
       setCooldownLeft(Math.floor(RETRY_COOLDOWN / 1000))
     } else {
-      // 考试通过，奖励积分
-      const newTotal = addPoints(PASS_REWARD_POINTS, userKey, user?.id)
-      setEarnedPoints(newTotal)
+      // 考试通过，奖励姚币（服务端自动加积分）
+      setEarnedPoints(PASS_REWARD_POINTS)
       tutorial.goTo("apply")
     }
-    completeExam(totalScore, passed)
+    await completeExam(totalScore, passed)
     setSubmitted(false)
     setPhase("result")
     if (passed) setShowPointsDialog(true)
   }
 
-  const handleSkipExam = () => {
+  const handleSkipExam = async () => {
     setScore(100)
     setSubmitted(true)
-    setEarnedPoints(addPoints(PASS_REWARD_POINTS, userKey, user?.id))
-    completeExam(100, true)
+    setEarnedPoints(PASS_REWARD_POINTS)
+    await completeExam(100, true)
     tutorial.goTo("apply")
     setSubmitted(false)
     setPhase("result")
@@ -352,7 +351,7 @@ export default function Activation() {
           </button>
 
           {/* ── 金手指 + 标题 ── */}
-          <div className="text-center mb-6">
+          <div className="text-center mb-6 hidden">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-400/30 mb-4 animate-bounce-soft">
               <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-white">
                 <path d="M7 11.5C7 10.12 8.12 9 9.5 9C9.67 9 9.83 9.03 10 9.08V5.5C10 4.67 10.67 4 11.5 4C12.33 4 13 4.67 13 5.5V8.5C13 8.5 14 7.5 15.5 7.5C16.33 7.5 17 8.17 17 9V12.5L17 14.5C17 17.54 14.54 20 11.5 20C9.5 20 7.79 18.72 7.09 16.95C6.92 16.54 6.77 16.12 6.64 15.69L5.94 13.58C5.67 12.73 6.04 11.83 6.87 11.52C6.96 11.48 7.05 11.46 7.14 11.45C7.05 11.31 7 11.14 7 11Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -793,6 +792,7 @@ export default function Activation() {
               </Badge>
             </div>
             <div className="flex items-center gap-3">
+              {user?.role !== "boss" && (
               <button
                 onClick={() => setAdminSkip((prev) => {
                   if (!prev) {
@@ -811,6 +811,7 @@ export default function Activation() {
               >
                 ⚡ {adminSkip ? "跳过中" : "跳过"}
               </button>
+              )}
               <button
                 onClick={() => { logout(); navigate("/login", { replace: true }) }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"

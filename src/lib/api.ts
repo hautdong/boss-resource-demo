@@ -1,127 +1,125 @@
-const API_BASE = '/api'
+const API_BASE = ""
 
-let authToken: string | null = localStorage.getItem('boss-resource-token')
+const TOKEN_KEY = "boss-resource-token"
 
-export function setToken(token: string | null) {
-  authToken = token
-  if (token) {
-    localStorage.setItem('boss-resource-token', token)
+let token = localStorage.getItem(TOKEN_KEY) || ""
+
+export function setToken(t: string | null) {
+  if (t) {
+    token = t
+    localStorage.setItem(TOKEN_KEY, t)
   } else {
-    localStorage.removeItem('boss-resource-token')
+    token = ""
+    localStorage.removeItem(TOKEN_KEY)
   }
 }
 
-export function getToken(): string | null {
-  return authToken
+export function clearToken() {
+  token = ""
+  localStorage.removeItem(TOKEN_KEY)
 }
 
-async function request<T = any>(
-  method: string,
-  path: string,
-  body?: any
-): Promise<T> {
+export function getToken() {
+  return token
+}
+
+async function request(path: string, options: RequestInit = {}) {
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> || {}),
   }
+  if (token) headers["Authorization"] = `Bearer ${token}`
 
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`
-  }
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-
-  const data = await res.json()
-
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     if (res.status === 401) {
-      // Token expired or invalid, clear it
-      setToken(null)
+      clearToken()
+      window.location.href = "/login"
     }
-    throw new Error(data.error || '请求失败')
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `请求失败 (${res.status})`)
   }
-
-  return data
+  return res.json()
 }
 
-// ── Auth API ──
-export const authApi = {
-  login: (username: string, password: string) =>
-    request<{ message: string; token: string; user: any }>('POST', '/auth/login', { username, password }),
+// ── Auth ──
+export const api = {
+  auth: {
+    login: (username: string, password: string) =>
+      request("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+    register: (data: { username: string; password: string; name: string; phone?: string; department?: string; role?: string }) =>
+      request("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
+    me: () => request("/api/auth/me"),
+    update: (data: any) => request("/api/auth/me", { method: "PUT", body: JSON.stringify(data) }),
+  },
 
-  register: (data: { name: string; username: string; phone: string; password: string }) =>
-    request<{ message: string; token: string; user: any }>('POST', '/auth/register', data),
+  points: {
+    get: (userId: string) => request(`/api/points/${userId}`),
+    add: (userId: string, amount: number, reason = "", source = "") =>
+      request("/api/points", { method: "POST", body: JSON.stringify({ userId, amount, reason, source }) }),
+    ranking: () => request("/api/points/ranking"),
+  },
 
-  me: () =>
-    request<{ user: any }>('GET', '/auth/me'),
+  study: {
+    get: (userId: string) => request(`/api/study/${userId}`),
+    save: (userId: string, data: any) =>
+      request(`/api/study/${userId}`, { method: "PUT", body: JSON.stringify(data) }),
+  },
 
-  updateProfile: (data: { name?: string; phone?: string }) =>
-    request<{ message: string; user: any }>('PUT', '/auth/profile', data),
+  exam: {
+    submit: (score: number, passed: boolean) =>
+      request("/api/exam/submit", { method: "POST", body: JSON.stringify({ score, passed }) }),
+    cooldown: (userId: string) => request(`/api/exam/cooldown/${userId}`),
+  },
 
-  updateActivation: (data: { status?: string; examScore?: number; examPassed?: boolean }) =>
-    request<{ message: string; user: any }>('PUT', '/auth/activation', data),
-}
+  resources: {
+    allocated: () => request("/api/resources/allocated"),
+    my: (userId: string) => request(`/api/resources/my/${userId}`),
+    allocate: (data: any) => request("/api/resources/allocate", { method: "POST", body: JSON.stringify(data) }),
+    request: (data: any) => request("/api/resources/request", { method: "POST", body: JSON.stringify(data) }),
+    approvals: () => request("/api/resources/approvals"),
+    approve: (id: string, status: string) =>
+      request(`/api/resources/approve/${id}`, { method: "PUT", body: JSON.stringify({ status }) }),
+  },
 
-// ── Users API ──
-export const usersApi = {
-  list: () =>
-    request<{ users: any[] }>('GET', '/users'),
+  stats: {
+    ranking: () => request("/api/statistics/ranking"),
+    summary: () => request("/api/statistics/summary"),
+  },
 
-  stats: () =>
-    request<{ stats: any }>('GET', '/users/stats'),
+  admin: {
+    users: () => request("/api/admin/users"),
+    updateUser: (userId: string, data: { activationStatus?: string }) =>
+      request(`/api/admin/users/${userId}`, { method: "PUT", body: JSON.stringify(data) }),
+  },
 
-  updateRole: (id: string, role: string) =>
-    request<{ message: string; user: any }>('PUT', `/users/${id}/role`, { role }),
+  orders: {
+    create: (data: { productId: string; productName: string; pointsCost: number; quantity: number }) =>
+      request("/api/orders", { method: "POST", body: JSON.stringify(data) }),
+    list: () => request("/api/orders"),
+    ship: (id: string, shippedAccount: string) =>
+      request(`/api/orders/${id}/ship`, { method: "PUT", body: JSON.stringify({ shippedAccount }) }),
+    pendingCount: () => request("/api/orders/pending-count"),
+  },
 
-  delete: (id: string) =>
-    request<{ message: string }>('DELETE', `/users/${id}`),
-}
-
-// ── Resources API ──
-export const resourcesApi = {
-  pending: () =>
-    request<{ items: any[] }>('GET', '/resources/pending'),
-
-  approve: (id: string) =>
-    request<{ message: string; item: any }>('PUT', `/resources/pending/${id}/approve`),
-
-  reject: (id: string, note?: string) =>
-    request<{ message: string; item: any }>('PUT', `/resources/pending/${id}/reject`, { note }),
-
-  apply: (data: any) =>
-    request<{ message: string; item: any }>('POST', '/resources/apply', data),
-
-  allocated: () =>
-    request<{ items: any[] }>('GET', '/resources/allocated'),
-
-  costBudgets: () =>
-    request<{ items: any[] }>('GET', '/resources/cost-budgets'),
-
-  dashboard: () =>
-    request<{ pendingApprovals: number; totalResources: number; totalBudget: number; totalUsed: number; budgetRemaining: number }>('GET', '/resources/dashboard'),
-}
-
-// ── Logs API ──
-export const logsApi = {
-  list: (params?: { limit?: number; offset?: number }) => {
-    const qs = new URLSearchParams()
-    if (params?.limit) qs.set('limit', String(params.limit))
-    if (params?.offset) qs.set('offset', String(params.offset))
-    return request<{ items: any[]; total: number }>('GET', `/logs?${qs.toString()}`)
+  bossResources: {
+    apply: (data: { resourceType: string; reason: string }) =>
+      request("/api/boss-resources/apply", { method: "POST", body: JSON.stringify(data) }),
+    applications: () => request("/api/boss-resources/applications"),
+    allocate: (id: string, allocatedInfo: string) =>
+      request(`/api/boss-resources/${id}/allocate`, { method: "PUT", body: JSON.stringify({ allocatedInfo }) }),
+    pendingCount: () => request("/api/boss-resources/pending-count"),
   },
 }
 
-// ── Bugs API ──
-export const bugsApi = {
-  list: () =>
-    request<{ items: any[] }>('GET', '/bugs'),
-
-  create: (data: { title: string; description: string; steps?: string; severity?: string }) =>
-    request<{ message: string; item: any }>('POST', '/bugs', data),
-
-  update: (id: string, data: { status?: string; assignee?: string }) =>
-    request<{ message: string; item: any }>('PUT', `/bugs/${id}`, data),
+// ── 兼容旧版导出 ──
+export const authApi = {
+  login: (username: string, password: string) =>
+    api.auth.login(username, password),
+  register: (data: any) =>
+    api.auth.register(data),
+  me: () =>
+    api.auth.me(),
+  updateActivation: (data: any) =>
+    api.auth.update(data),
 }

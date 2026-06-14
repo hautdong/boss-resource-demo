@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
-import { authApi, setToken } from "../lib/api"
+import { authApi, setToken, clearToken } from "../lib/api"
 
 export type UserRole = "super_admin" | "admin" | "boss"
 export type ActivationStatus = "pending" | "studying" | "ready" | "activated"
@@ -55,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           // Token invalid, clear it
-          setToken(null)
-          localStorage.removeItem("boss-resource-token")
+          clearToken()
         })
         .finally(() => {
           setIsLoading(false)
@@ -90,35 +89,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setUser(null)
-    setToken(null)
+    clearToken()
   }, [])
 
   const updateActivationStatus = useCallback(async (status: ActivationStatus) => {
     if (!user) return
+    const updated = { ...user, activationStatus: status }
     try {
       const data = await authApi.updateActivation({ status })
-      setUser(data.user)
+      setUser(data.user || updated)
     } catch {
-      // Fallback: update locally
-      const updated = { ...user, activationStatus: status }
       setUser(updated)
     }
   }, [user])
 
   const completeExam = useCallback(async (score: number, passed: boolean) => {
     if (!user) return
+    const status = passed ? "activated" as const : "pending" as const
+    const updated = {
+      ...user,
+      activationStatus: status,
+      examScore: score,
+      examPassed: passed,
+    }
     try {
-      const status = passed ? "activated" as const : "pending" as const
       const data = await authApi.updateActivation({ status, examScore: score, examPassed: passed })
-      setUser(data.user)
+      // 服务端返回 { success: true } 不包含 user 对象时，使用本地更新
+      setUser(data.user || updated)
     } catch {
-      // Fallback
-      const updated = {
-        ...user,
-        activationStatus: passed ? "activated" as const : "pending" as const,
-        examScore: score,
-        examPassed: passed,
-      }
+      // 网络异常时使用本地回退
       setUser(updated)
     }
   }, [user])

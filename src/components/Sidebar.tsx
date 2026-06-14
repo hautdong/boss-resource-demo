@@ -26,7 +26,7 @@ const ALL_NAV_ITEMS: NavItemDef[] = [
   { to: "/", icon: LayoutDashboard, label: "工作台", color: "text-indigo-500" },
   { to: "/profile", icon: UserCircle, label: "个人信息", color: "text-emerald-500" },
   { to: "/management", icon: Users, label: "账号管理", color: "text-blue-500" },
-  { to: "/resources", icon: Server, label: "BOSS资源", color: "text-amber-500" },
+  { to: "/resources", icon: Server, label: "姚币商城", color: "text-amber-500" },
   { to: "/statistics", icon: BarChart3, label: "数据统计", color: "text-violet-500" },
   { to: "/logs", icon: ClipboardList, label: "操作日志", color: "text-rose-500" },
   { to: "/bugs", icon: Bug, label: "Bug记录", color: "text-orange-500" },
@@ -97,6 +97,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onMobileClose
             <NavLink
               key={item.to}
               to={item.to}
+              id={item.to === "/resources" ? "nav-resources" : undefined}
               end={item.to === "/"}
               onClick={onMobileClose}
               className={({ isActive }) =>

@@ -30,6 +30,14 @@ interface CloudUser {
 
 const POINTS_ADJUST = 5
 
+// ─── 激活状态规范化 ───
+function isActiveStatus(status: string): boolean {
+  return status === "activated" || status === "已激活"
+}
+function normalizeStatus(status: string): string {
+  return isActiveStatus(status) ? "已激活" : "待激活"
+}
+
 // ═══════════════════════════════════════════════
 // BossSelfView — BOSS 看自己的信息
 // ═══════════════════════════════════════════════
@@ -41,16 +49,16 @@ function BossSelfView() {
   const fetchMyData = useCallback(async () => {
     try {
       setLoading(true)
-      // BOSS 用户通过 admin.users 接口查自己的信息
-      const users = await api.admin.users()
-      const me = users.find((u: CloudUser) => u.username === user?.username)
-      setMyData(me || null)
+      // BOSS 用户通过 auth.me 接口查自己的信息
+      const data = await api.auth.me()
+      const userData = data.user || data
+      setMyData(userData)
     } catch (e) {
       console.error("获取用户数据失败:", e)
     } finally {
       setLoading(false)
     }
-  }, [user?.username])
+  }, [])
 
   useEffect(() => { fetchMyData() }, [fetchMyData])
 
@@ -150,7 +158,7 @@ function BossSelfView() {
               { label: "部门", value: myData.department || "-" },
               { label: "角色", value: myData.roleLabel },
               { label: "当前姚币", value: `${myData.points} 币` },
-              { label: "激活状态", value: myData.activationStatus === "已激活" ? "✅ 已激活" : "⏳ 待激活" },
+              { label: "激活状态", value: normalizeStatus(myData.activationStatus) === "已激活" ? "✅ 已激活" : "⏳ 待激活" },
               { label: "考试状态", value: myData.examPassed ? `✅ 已通过 (${myData.examScore}分)` : "未通过" },
               { label: "注册日期", value: myData.joinDate ? new Date(myData.joinDate).toLocaleDateString("zh-CN") : "-" },
             ].map((item) => (
@@ -197,9 +205,9 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
       filtered = filtered.filter((u) => u.role === "boss")
     }
     if (statusFilter === "active") {
-      filtered = filtered.filter((u) => u.activationStatus === "已激活")
+      filtered = filtered.filter((u) => isActiveStatus(u.activationStatus))
     } else if (statusFilter === "pending") {
-      filtered = filtered.filter((u) => u.activationStatus !== "已激活")
+      filtered = filtered.filter((u) => !isActiveStatus(u.activationStatus))
     }
     return filtered
   }, [role, users, statusFilter])
@@ -208,10 +216,16 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
   const handleToggleActivation = useCallback(async (userId: string, currentStatus: string) => {
     try {
       setActionLoading(userId)
-      const newStatus = currentStatus === "已激活" ? "待激活" : "已激活"
+      const newStatus = isActiveStatus(currentStatus) ? "待激活" : "已激活"
       await api.admin.updateUser(userId, { activationStatus: newStatus })
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, activationStatus: newStatus } : u))
+        prev.map((u) => (u.id === userId ? {
+          ...u,
+          activationStatus: newStatus,
+          // 取消激活时同步清除考试状态，保持一致
+          examPassed: newStatus === "已激活" ? u.examPassed : false,
+          examScore: newStatus === "已激活" ? u.examScore : 0,
+        } : u))
       )
     } catch (e: any) {
       alert("操作失败: " + (e.message || "未知错误"))
@@ -320,10 +334,10 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={u.activationStatus === "已激活" ? "success" : "secondary"}
+                    variant={isActiveStatus(u.activationStatus) ? "success" : "secondary"}
                     className="text-[10px]"
                   >
-                    {u.activationStatus || "待激活"}
+                    {normalizeStatus(u.activationStatus)}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -368,7 +382,7 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
                 <TableCell className="text-right">
                   {actionLoading === u.id ? (
                     <Loader2 className="h-4 w-4 animate-spin ml-auto" />
-                  ) : u.activationStatus === "已激活" ? (
+                  ) : isActiveStatus(u.activationStatus) ? (
                     <Button
                       variant="ghost"
                       size="sm"

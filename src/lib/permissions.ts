@@ -50,6 +50,7 @@ const PERMISSION_MAP: Record<UserRole, Permission[]> = {
   boss: [
     "view_dashboard",
     "view_profile",
+    "view_management",
     "view_resources",
     "view_statistics",
     "view_bugs",
@@ -82,7 +83,7 @@ export function getVisibleNavItems(role: UserRole) {
     { to: "/", label: "工作台", permission: "view_dashboard" as Permission },
     { to: "/profile", label: "个人信息", permission: "view_profile" as Permission },
     { to: "/management", label: "账号管理", permission: "view_management" as Permission },
-    { to: "/resources", label: "BOSS资源", permission: "view_resources" as Permission },
+    { to: "/resources", label: "姚币商城", permission: "view_resources" as Permission },
     { to: "/statistics", label: "数据统计", permission: "view_statistics" as Permission },
     { to: "/logs", label: "操作日志", permission: "view_logs" as Permission },
     { to: "/bugs", label: "Bug记录", permission: "view_bugs" as Permission },

@@ -46,11 +46,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   // 持久化
   useEffect(() => { localStorage.setItem(KEY, JSON.stringify(state)) }, [state])
 
-  // BOSS用户登录后自动开启教程（仅一次）
+  // BOSS用户登录后自动开启教程（仅一次，且仅未激活用户）
+  // 非BOSS角色自动清空教程状态
   useEffect(() => {
     if (!isAuthenticated || !user) return
     if (state.enabled || state.step >= 5) return
     if (user.role !== "boss") return
+    // 已激活的用户不需要教程
+    if (user.activationStatus === "activated" || user.activationStatus === "已激活") return
 
     // 检查是否从未开启过
     const raw = localStorage.getItem(KEY)
@@ -58,6 +61,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       setState({ enabled: true, step: 0 })
     }
   }, [isAuthenticated, user])
+
+  // 非BOSS用户登录后强制清除教程状态
+  useEffect(() => {
+    if (user && user.role !== "boss") {
+      setState({ enabled: false, step: 0 })
+      localStorage.removeItem(KEY)
+    }
+  }, [user])
 
   const stepInfo = state.enabled && state.step < 5 ? TUTORIAL_STEPS[state.step] : null
   const progress = state.enabled 

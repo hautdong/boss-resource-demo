@@ -23,7 +23,7 @@ export function ActivationGuard() {
     return <Navigate to="/login" replace />
   }
 
-  if (user && user.activationStatus === "activated") {
+  if (user && (user.activationStatus === "activated" || user.activationStatus === "已激活")) {
     return <Navigate to="/" replace />
   }
 
