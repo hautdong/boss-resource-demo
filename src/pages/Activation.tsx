@@ -748,10 +748,10 @@ export default function Activation() {
                 <div className="rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border border-amber-200 dark:border-amber-800 p-4 animate-scale-in">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <Star className="h-5 w-5 text-amber-500 fill-amber-500 animate-pulse" />
-                    <span className="text-lg font-bold text-amber-700 dark:text-amber-400">+{PASS_REWARD_POINTS} 积分</span>
+                    <span className="text-lg font-bold text-amber-700 dark:text-amber-400">+{PASS_REWARD_POINTS} 姚币</span>
                   </div>
                   <p className="text-sm text-amber-600 dark:text-amber-400">
-                    恭喜获得 {PASS_REWARD_POINTS} 积分，可用于后续道具兑换！
+                    恭喜获得 {PASS_REWARD_POINTS} 姚币，可用于后续道具兑换！
                   </p>
                 </div>
               </DialogDescription>
@@ -792,7 +792,6 @@ export default function Activation() {
               </Badge>
             </div>
             <div className="flex items-center gap-3">
-              {user?.role !== "boss" && (
               <button
                 onClick={() => setAdminSkip((prev) => {
                   if (!prev) {
@@ -811,7 +810,6 @@ export default function Activation() {
               >
                 ⚡ {adminSkip ? "跳过中" : "跳过"}
               </button>
-              )}
               <button
                 onClick={() => { logout(); navigate("/login", { replace: true }) }}
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"

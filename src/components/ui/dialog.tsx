@@ -38,14 +38,14 @@ function DialogContent({ className, children, ...props }: React.HTMLAttributes<H
   if (!context.open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[200000] flex items-center justify-center">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
         onClick={() => context.onOpenChange(false)}
       />
       <div
         className={cn(
-          "relative z-50 w-full max-w-lg rounded-xl border bg-background p-6 shadow-2xl animate-scale-in",
+          "relative z-[200000] w-full max-w-lg rounded-xl border bg-background p-6 shadow-2xl animate-scale-in",
           className
         )}
         {...props}

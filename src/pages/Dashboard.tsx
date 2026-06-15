@@ -4,12 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { EditableField } from "../components/EditableField"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { useState, useEffect } from "react"
+import { api } from "../lib/api"
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isAdmin = user?.role === "super_admin" || user?.role === "admin"
-  const pendingCount = (() => { try { return JSON.parse(localStorage.getItem("boss-resource-approvals") || "[]").length } catch { return 0 } })()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    const fetchPending = async () => {
+      try {
+        const apps = await api.bossResources.applications()
+        setPendingCount((apps || []).filter((a: any) => a.status === "pending").length)
+      } catch {}
+    }
+    fetchPending()
+    const interval = setInterval(fetchPending, 30000)
+    return () => clearInterval(interval)
+  }, [isAdmin])
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -64,9 +79,9 @@ export default function Dashboard() {
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "新增账号", desc: "注册新用户", color: "bg-indigo-500", path: "/management" },
+                ...(isAdmin ? [{ label: "新增账号", desc: "注册新用户", color: "bg-indigo-500", path: "/management" }] : []),
                 { label: "资源审批", desc: isAdmin ? `待审批 ${pendingCount} 条` : "查看资源", color: "bg-amber-500", path: "/resources" },
-                { label: "数据导出", desc: "导出统计报表", color: "bg-emerald-500", path: "/statistics" },
+                ...(isAdmin ? [{ label: "数据导出", desc: "导出统计报表", color: "bg-emerald-500", path: "/statistics" }] : []),
                 { label: "成本台账", desc: "查看成本明细", color: "bg-violet-500", path: "/resources" },
               ].map((item, i) => (
                 <button

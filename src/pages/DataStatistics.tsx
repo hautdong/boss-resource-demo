@@ -81,7 +81,7 @@ export default function DataStatistics() {
   const sortedUsers = useMemo(() => {
     return [...users].sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points
-      // 末次获得积分时间更早的排前面
+      // 末次获得姚币时间更早的排前面
       if (a.lastPointsTime && b.lastPointsTime) {
         return new Date(a.lastPointsTime).getTime() - new Date(b.lastPointsTime).getTime()
       }
@@ -108,7 +108,7 @@ export default function DataStatistics() {
   const avgPoints = totalBoss > 0 ? (totalPoints / totalBoss).toFixed(1) : "0"
 
   const handleExport = () => {
-    const rows = [["排名", "姓名", "部门", "积分", "末次获得时间"]]
+    const rows = [["排名", "姓名", "部门", "姚币", "末次获得时间"]]
     filteredUsers.forEach((u, i) => {
       const timeStr = u.lastPointsTime
         ? new Date(u.lastPointsTime).toLocaleString("zh-CN")
@@ -119,7 +119,7 @@ export default function DataStatistics() {
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
-    a.href = url; a.download = "BOSS积分排名.csv"; a.click()
+    a.href = url; a.download = "BOSS姚币排名.csv"; a.click()
     URL.revokeObjectURL(url)
   }
 
@@ -127,7 +127,7 @@ export default function DataStatistics() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight gradient-text">数据统计</h1>
-        <p className="text-sm text-muted-foreground mt-1">BOSS 积分排名</p>
+        <p className="text-sm text-muted-foreground mt-1">BOSS 姚币排名</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -143,7 +143,7 @@ export default function DataStatistics() {
         </Card>
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm text-muted-foreground">总积分</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">总姚币</CardTitle>
             <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
           </CardHeader>
           <CardContent>
@@ -153,12 +153,12 @@ export default function DataStatistics() {
         </Card>
         <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm text-muted-foreground">平均积分</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">平均姚币</CardTitle>
             <Trophy className="h-5 w-5 text-amber-500" />
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{avgPoints}</p>
-            <p className="text-xs text-muted-foreground mt-1">人均积分</p>
+            <p className="text-xs text-muted-foreground mt-1">人均姚币</p>
           </CardContent>
         </Card>
       </div>
@@ -169,7 +169,7 @@ export default function DataStatistics() {
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-amber-500" />
               <CardTitle className="text-base">BOSS 综合排名</CardTitle>
-              <Badge variant="primary" className="ml-2">排名依据：积分</Badge>
+              <Badge variant="primary" className="ml-2">排名依据：姚币</Badge>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground relative z-10">
@@ -204,7 +204,7 @@ export default function DataStatistics() {
                   <TableHead className="w-12">排名</TableHead>
                   <TableHead>BOSS</TableHead>
                   <TableHead>部门</TableHead>
-                  <TableHead>积分</TableHead>
+                  <TableHead>姚币</TableHead>
                   <TableHead>末次获得时间</TableHead>
                 </TableRow>
               </TableHeader>

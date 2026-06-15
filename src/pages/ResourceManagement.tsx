@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
 import {
   AlertCircle, CheckCircle, XCircle, Shield,
-  Plus, Trash2, Send, CreditCard, Database, CheckCircle2, Star, Gift, Package
+  Plus, Trash2, Send, CreditCard, Database, CheckCircle2, Star, Gift, Package, Upload, FileText, Download, Eye
 } from "lucide-react"
 import { useAuth } from "../context/AuthContext"
 import { useTutorial } from "../context/TutorialContext"
@@ -157,7 +157,10 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
             <Card key={p.id} className={`cursor-pointer transition-all hover:shadow-md ${
               selectedProduct === p.id ? "ring-2 ring-amber-400 shadow-lg" : ""
             } ${points < p.pointsCost ? "opacity-60" : ""}`}
-            onClick={() => points >= p.pointsCost && setSelectedProduct(p.id)}
+            onClick={() => {
+              if (points < p.pointsCost) { alert(`姚币不足！${p.name} 需要 ${p.pointsCost} 姚币，你当前只有 ${points} 姚币。考试通过可获得姚币。`); return }
+              setSelectedProduct(p.id)
+            }}
             >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
@@ -186,7 +189,7 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
 
       {/* Exchange Panel */}
       {selectedProduct && product && (
-        <Card className="border-amber-200 dark:border-amber-800">
+        <Card className="border-amber-200 dark:border-amber-800 relative z-[200000]">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-amber-500" />
@@ -207,15 +210,15 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
               <div className="text-sm">
                 合计：<span className="font-bold text-amber-600">{totalCost} 姚币</span>
               </div>
-              <Button
-                variant="primary"
-                onClick={() => setShowConfirm(true)}
+              <button
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-9 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 ml-auto"
+                style={{ position: "relative", zIndex: 999999, pointerEvents: "auto" } as React.CSSProperties}
+                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowConfirm(true); }}
                 disabled={totalCost > points}
-                className="ml-auto"
               >
                 <Send className="h-4 w-4 mr-1" />
-                确认兑换
-              </Button>
+                {totalCost > points ? `姚币不足 (需${totalCost})` : "确认兑换"}
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -318,7 +321,9 @@ function AdminOrderView() {
   const [orders, setOrders] = useState<ExchangeOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [shipAccount, setShipAccount] = useState("")
+  const [shipPassword, setShipPassword] = useState("")
   const [shippingId, setShippingId] = useState<string | null>(null)
+  const [showShipDialog, setShowShipDialog] = useState(false)
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -333,19 +338,29 @@ function AdminOrderView() {
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
 
+  const openShipDialog = (id: string) => {
+    setShippingId(id)
+    setShipAccount("")
+    setShipPassword("")
+    setShowShipDialog(true)
+  }
+
   const handleShip = useCallback(async () => {
     if (!shippingId || !shipAccount) return
+    const accountInfo = `${shipAccount} / ${shipPassword || '无密码'}`
     try {
-      await api.orders.ship(shippingId, shipAccount)
+      await api.orders.ship(shippingId, accountInfo)
       setOrders(prev => prev.map(o =>
-        o.id === shippingId ? { ...o, status: "shipped", shippedAccount: shipAccount } : o
+        o.id === shippingId ? { ...o, status: "shipped", shippedAccount: accountInfo } : o
       ))
+      setShowShipDialog(false)
       setShippingId(null)
       setShipAccount("")
+      setShipPassword("")
     } catch (e: any) {
       alert("发货失败: " + (e.message || ""))
     }
-  }, [shippingId, shipAccount])
+  }, [shippingId, shipAccount, shipPassword])
 
   const pendingOrders = orders.filter(o => o.status === "pending")
   const shippedOrders = orders.filter(o => o.status === "shipped" || o.status === "completed")
@@ -394,23 +409,9 @@ function AdminOrderView() {
                           {new Date(o.orderDate).toLocaleDateString("zh-CN")}
                         </TableCell>
                         <TableCell className="text-right">
-                          {shippingId === o.id ? (
-                            <div className="flex items-center gap-2 justify-end">
-                              <Input
-                                className="w-40 h-8 text-sm"
-                                placeholder="VIP账号"
-                                value={shipAccount}
-                                onChange={(e) => setShipAccount(e.target.value)}
-                              />
-                              <Button size="sm" onClick={handleShip} disabled={!shipAccount}>
-                                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />确认
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" onClick={() => setShippingId(o.id)}>
-                              <Send className="h-3.5 w-3.5 mr-1" />发货
-                            </Button>
-                          )}
+                          <Button size="sm" onClick={() => openShipDialog(o.id)}>
+                            <Send className="h-3.5 w-3.5 mr-1" />发货
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -424,14 +425,17 @@ function AdminOrderView() {
         <TabsContent value="shipped" className="mt-4">
           <Card>
             <CardContent className="pt-6">
+              {shippedOrders.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">暂无已发货订单</div>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>用户</TableHead>
                     <TableHead>商品</TableHead>
                     <TableHead>数量</TableHead>
-                    <TableHead>发货账号</TableHead>
-                    <TableHead>发货时间</TableHead>
+                    <TableHead>发放账号</TableHead>
+                    <TableHead>时间</TableHead>
                     <TableHead>状态</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -441,26 +445,44 @@ function AdminOrderView() {
                       <TableCell className="font-medium">{o.userName}</TableCell>
                       <TableCell>{o.productName}</TableCell>
                       <TableCell>{o.quantity}</TableCell>
-                      <TableCell className="font-mono text-sm">{o.shippedAccount || "-"}</TableCell>
+                      <TableCell className="text-sm font-mono">{o.shippedAccount || "-"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {o.shippedDate ? new Date(o.shippedDate).toLocaleDateString("zh-CN") : "-"}
+                        {o.orderDate ? new Date(o.orderDate).toLocaleDateString("zh-CN") : "-"}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="success">已发货</Badge>
-                      </TableCell>
+                      <TableCell><Badge variant="success">已发放</Badge></TableCell>
                     </TableRow>
                   ))}
-                  {shippedOrders.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暂无已发货订单</TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 发货对话框 */}
+      <Dialog open={showShipDialog} onOpenChange={setShowShipDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>发放账号</DialogTitle>
+            <DialogDescription>填写 VIP 账号和密码，确认后申请者可在兑换记录中查看。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <p className="text-sm font-medium mb-1.5">VIP 账号</p>
+              <Input placeholder="请输入VIP账号" value={shipAccount} onChange={e => setShipAccount(e.target.value)} />
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-1.5">VIP 密码</p>
+              <Input placeholder="请输入VIP密码" value={shipPassword} onChange={e => setShipPassword(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowShipDialog(false)}>取消</Button>
+            <Button onClick={handleShip} disabled={!shipAccount}>确认发放</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -527,10 +549,12 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 {RESOURCE_TYPES.map(r => (
                   <div key={r.id}
+                    id={r.id === "license" ? "resource-type-license" : undefined}
                     className={`rounded-xl border-2 p-4 cursor-pointer transition-all ${
                       selectedType === r.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 hover:border-blue-300 dark:border-gray-700"
                     }`}
-                    onClick={() => setSelectedType(r.id)}
+                    style={{ position: "relative", zIndex: 99999, pointerEvents: "auto" } as React.CSSProperties}
+                    onMouseDown={(e) => { e.stopPropagation(); setSelectedType(r.id) }}
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{r.icon}</span>
@@ -539,6 +563,7 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
                         <p className="text-xs text-muted-foreground">{r.desc}</p>
                       </div>
                     </div>
+                    {selectedType === r.id && <p className="text-xs text-blue-600 mt-1">✓ 已选择</p>}
                   </div>
                 ))}
               </div>
@@ -553,9 +578,15 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
                 onChange={e => setReason(e.target.value)}
               />
             </div>
-            <Button id="resource-submit-btn" variant="primary" onClick={handleApply} disabled={submitting}>
+            <button
+              id="resource-submit-btn"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-9 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              style={{ position: "relative", zIndex: 999999, pointerEvents: "auto" } as React.CSSProperties}
+              onMouseDown={(e) => { e.stopPropagation(); handleApply() }}
+              disabled={submitting}
+            >
               {submitting ? "提交中..." : "提交申请"}
-            </Button>
+            </button>
           </div>
         </CardContent>
       </Card>
@@ -580,7 +611,10 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {myApps.map(a => (
+                {myApps.map(a => {
+                  let allocData: any = {}
+                  try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
+                  return (
                   <TableRow key={a.id}>
                     <TableCell className="font-medium">{a.resourceType === "license" ? "营业执照" : a.resourceType === "cert" ? "企业认证" : a.resourceType === "contract" ? "合同模板" : a.resourceType}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{a.reason || "-"}</TableCell>
@@ -589,12 +623,21 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
                         {a.status === "pending" ? "待审批" : "已分配"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">{a.allocatedInfo || "-"}</TableCell>
+                    <TableCell className="text-sm">
+                      {a.status === "allocated" && allocData.file ? (
+                        <a href={allocData.file} download={allocData.fileName || "download"} className="flex items-center gap-1 text-blue-600 hover:underline">
+                          <Download className="h-3.5 w-3.5" />
+                          {allocData.fileName || "下载附件"}
+                        </a>
+                      ) : (
+                        <span>{allocData.info || a.allocatedInfo || "-"}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           )}
@@ -610,8 +653,12 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
 function AdminResourceView() {
   const [apps, setApps] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [allocInfo, setAllocInfo] = useState("")
   const [allocId, setAllocId] = useState<string | null>(null)
+  const [allocInfo, setAllocInfo] = useState("")
+  const [allocFile, setAllocFile] = useState<string | null>(null)
+  const [allocFileName, setAllocFileName] = useState("")
+  const [showAllocDialog, setShowAllocDialog] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const fetchApps = useCallback(async () => {
     try {
@@ -623,13 +670,37 @@ function AdminResourceView() {
 
   useEffect(() => { fetchApps() }, [fetchApps])
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) { alert("文件不能超过10MB"); return }
+    setAllocFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = () => setAllocFile(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  const openAllocDialog = (id: string) => {
+    setAllocId(id)
+    setAllocInfo("")
+    setAllocFile(null)
+    setAllocFileName("")
+    setShowAllocDialog(true)
+  }
+
   const handleAllocate = async () => {
-    if (!allocId || !allocInfo) return
+    if (!allocId) return
+    const payload: any = { info: allocInfo }
+    if (allocFile) {
+      payload.file = allocFile
+      payload.fileName = allocFileName
+    }
     try {
-      await api.bossResources.allocate(allocId, allocInfo)
-      setApps(prev => prev.map(a => a.id === allocId ? { ...a, status: "allocated", allocatedInfo: allocInfo } : a))
+      await api.bossResources.allocate(allocId, JSON.stringify(payload))
+      setApps(prev => prev.map(a => a.id === allocId ? { ...a, status: "allocated", allocatedInfo: JSON.stringify(payload) } : a))
+      setShowAllocDialog(false)
       setAllocId(null)
-      setAllocInfo("")
+      setAllocFile(null)
     } catch (e: any) {
       alert("分配失败: " + (e.message || ""))
     }
@@ -669,14 +740,7 @@ function AdminResourceView() {
                         <TableCell className="text-sm text-muted-foreground">{a.reason || "-"}</TableCell>
                         <TableCell className="text-sm">{a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}</TableCell>
                         <TableCell className="text-right">
-                          {allocId === a.id ? (
-                            <div className="flex items-center gap-2 justify-end">
-                              <Input className="w-40 h-8 text-sm" placeholder="分配内容" value={allocInfo} onChange={e => setAllocInfo(e.target.value)} />
-                              <Button size="sm" onClick={handleAllocate} disabled={!allocInfo}>确认分配</Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" onClick={() => setAllocId(a.id)}>分配</Button>
-                          )}
+                          <Button size="sm" onClick={() => openAllocDialog(a.id)}>分配</Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -695,22 +759,35 @@ function AdminResourceView() {
                     <TableHead>申请人</TableHead>
                     <TableHead>资源类型</TableHead>
                     <TableHead>分配内容</TableHead>
+                    <TableHead>附件</TableHead>
                     <TableHead>分配时间</TableHead>
                     <TableHead>状态</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allocatedApps.map(a => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium">{a.userName}</TableCell>
-                      <TableCell>{a.resourceType === "license" ? "营业执照" : a.resourceType}</TableCell>
-                      <TableCell className="text-sm">{a.allocatedInfo || "-"}</TableCell>
-                      <TableCell className="text-sm">{a.allocatedDate ? new Date(a.allocatedDate).toLocaleDateString("zh-CN") : "-"}</TableCell>
-                      <TableCell><Badge variant="success">已分配</Badge></TableCell>
-                    </TableRow>
-                  ))}
+                  {allocatedApps.map(a => {
+                    let allocData: any = {}
+                    try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">{a.userName}</TableCell>
+                        <TableCell>{a.resourceType === "license" ? "营业执照" : a.resourceType}</TableCell>
+                        <TableCell className="text-sm">{allocData.info || a.allocatedInfo || "-"}</TableCell>
+                        <TableCell>
+                          {allocData.file ? (
+                            <a href={allocData.file} download={allocData.fileName || "download"} className="flex items-center gap-1 text-blue-600 hover:underline text-sm">
+                              <Download className="h-3.5 w-3.5" />
+                              {allocData.fileName || "下载附件"}
+                            </a>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell className="text-sm">{a.allocatedDate ? new Date(a.allocatedDate).toLocaleDateString("zh-CN") : "-"}</TableCell>
+                        <TableCell><Badge variant="success">已分配</Badge></TableCell>
+                      </TableRow>
+                    )
+                  })}
                   {allocatedApps.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">暂无已分配记录</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暂无已分配记录</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -718,6 +795,61 @@ function AdminResourceView() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 分配对话框 — 支持文件上传 */}
+      <Dialog open={showAllocDialog} onOpenChange={setShowAllocDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>分配资源</DialogTitle>
+            <DialogDescription>上传文件并填写分配说明，提交后申请者即可查看。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {/* 文件上传 */}
+            <div>
+              <p className="text-sm font-medium mb-2">上传附件（营业执照等）</p>
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+              {allocFile ? (
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm font-medium truncate max-w-[200px]">{allocFileName}</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => { setAllocFile(null); setAllocFileName("") }}>移除</Button>
+                  </div>
+                  {allocFile.startsWith("data:image") && (
+                    <img src={allocFile} alt="预览" className="mt-2 max-h-32 rounded object-contain" />
+                  )}
+                </div>
+              ) : (
+                <div
+                  className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">点击或拖拽上传文件</p>
+                  <p className="text-xs text-muted-foreground mt-1">支持图片、PDF，最大10MB</p>
+                </div>
+              )}
+            </div>
+            {/* 补充说明 */}
+            <div>
+              <p className="text-sm font-medium mb-2">补充说明</p>
+              <textarea
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none"
+                rows={2}
+                placeholder="输入分配说明..."
+                value={allocInfo}
+                onChange={e => setAllocInfo(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setShowAllocDialog(false)}>取消</Button>
+            <Button onClick={handleAllocate}>确认分配</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -740,16 +872,16 @@ export default function ResourceManagement() {
         </p>
       </div>
 
-      <Tabs defaultValue="exchange">
+      <Tabs defaultValue="resources">
         <TabsList>
-          <TabsTrigger value="exchange" id="exchange-tab">姚币兑换</TabsTrigger>
           <TabsTrigger value="resources" id="resource-tab">资源申请</TabsTrigger>
+          <TabsTrigger value="exchange" id="exchange-tab">姚币兑换</TabsTrigger>
         </TabsList>
-        <TabsContent value="exchange" className="mt-4">
-          {isBoss ? <BossExchangeView onExchanged={() => tutorial.next()} /> : <AdminOrderView />}
-        </TabsContent>
         <TabsContent value="resources" className="mt-4">
           {isBoss ? <BossResourceApply onSubmitted={() => tutorial.goTo("exchange")} /> : <AdminResourceView />}
+        </TabsContent>
+        <TabsContent value="exchange" className="mt-4">
+          {isBoss ? <BossExchangeView onExchanged={() => tutorial.next()} /> : <AdminOrderView />}
         </TabsContent>
       </Tabs>
     </div>

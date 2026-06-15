@@ -4,20 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../co
 import { Badge } from "../components/ui/badge"
 import {
   UserCircle, Shield, Phone, Key, CheckCircle2, Clock,
-  Award, Mail, Star
+  Award, Mail
 } from "lucide-react"
-
-function getUserPoints(user: { name: string; phone?: string; username?: string }): number {
-  const key = `${user.name}-${user.phone || user.username || ""}`
-  try { return Number(localStorage.getItem(`boss-points-${key}`)) || 0 } catch { return 0 }
-}
 
 export default function PersonalInfo() {
   const { user } = useAuth()
 
   if (!user) return null
-
-  const points = getUserPoints(user)
 
   const statusConfig = {
     activated: { label: "已激活", icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-100 dark:bg-emerald-900/30" },
@@ -25,8 +18,8 @@ export default function PersonalInfo() {
     studying: { label: "学习中", icon: Clock, color: "text-blue-500", bg: "bg-blue-100 dark:bg-blue-900/30" },
     ready: { label: "待考试", icon: Clock, color: "text-indigo-500", bg: "bg-indigo-100 dark:bg-indigo-900/30" },
   }
-  const status = statusConfig[user.activationStatus]
-  const StatusIcon = status.icon
+  const status = statusConfig[user.activationStatus] || statusConfig.pending
+  const StatusIcon = status?.icon || Clock
 
   return (
     <div className="space-y-6">
@@ -50,10 +43,6 @@ export default function PersonalInfo() {
 
               <div className="flex items-center gap-2 mt-3">
                 <Badge className={getRoleColorClass(user.role)}>{getRoleLabel(user.role)}</Badge>
-                <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                  <Star className="h-3 w-3 mr-1 fill-amber-500" />
-                  {points} 积分
-                </Badge>
               </div>
 
               <div className={`mt-3 flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${status.bg} ${status.color}`}>
@@ -149,10 +138,6 @@ export default function PersonalInfo() {
                   <p className="text-xs text-muted-foreground">系统角色</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Badge className={getRoleColorClass(user.role)}>{getRoleLabel(user.role)}</Badge>
-                    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      <Star className="h-3 w-3 mr-1 fill-amber-500" />
-                      {points} 积分
-                    </Badge>
                   </div>
                 </div>
               </div>

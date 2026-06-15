@@ -17,7 +17,7 @@ const logs = [
   { id: 8, user: "李华", action: "成本台账订正", target: "华南事业部线索包费用修正", ip: "192.168.1.101", time: "2025-06-09 09:12:00", type: "operation" },
   { id: 9, user: "系统", action: "自动判卷", target: "郑十 - 考试成绩 85分 (通过)", ip: "-", time: "2025-06-09 08:50:30", type: "system" },
   { id: 10, user: "周八", action: "用户登出", target: "IP: 192.168.1.104", ip: "192.168.1.104", time: "2025-06-08 18:30:00", type: "auth" },
-  { id: 11, user: "超级管理员", action: "积分调整", target: "吴九 积分增加 5 分", ip: "192.168.1.100", time: "2025-06-08 16:20:45", type: "auth" },
+  { id: 11, user: "超级管理员", action: "姚币调整", target: "吴九 姚币增加 5 姚币", ip: "192.168.1.100", time: "2025-06-08 16:20:45", type: "auth" },
   { id: 12, user: "李华", action: "资源回收", target: "赵六 - 过期线索包 800条", ip: "192.168.1.101", time: "2025-06-08 15:00:00", type: "operation" },
 ]
 

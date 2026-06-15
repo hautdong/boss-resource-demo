@@ -234,7 +234,7 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
     }
   }, [])
 
-  // 积分调整
+  // 姚币调整
   const handleAdjustPoints = useCallback(async (userId: string, direction: "add" | "subtract") => {
     try {
       setActionLoading(userId)
@@ -242,7 +242,7 @@ function UserTableView({ role, statusFilter }: { role: UserRole; statusFilter?: 
       const user = users.find((u) => u.id === userId)
       if (!user) return
       if (direction === "subtract" && user.points < POINTS_ADJUST) {
-        alert("积分不足，无法扣减")
+        alert("姚币不足，无法扣减")
         return
       }
       const result = await api.points.add(userId, amount, "管理员调整", "admin")

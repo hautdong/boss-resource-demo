@@ -1,4 +1,4 @@
-import { Bell, Search, LogOut, User, Menu, Code, X } from "lucide-react"
+import { Bell, Search, LogOut, User, Menu, Code, X, FileText } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { ThemeToggle } from "./ThemeToggle"
 import { useAuth } from "../context/AuthContext"
@@ -7,6 +7,7 @@ import { getRoleShortLabel } from "../lib/roleConfig"
 import { useState, useRef, useEffect } from "react"
 import { loadNotifications, markAllRead, getUnreadCount } from "../lib/notifications"
 import type { Notification } from "../lib/notifications"
+import { api } from "../lib/api"
 
 interface TopNavProps {
   onMobileMenuToggle: () => void
@@ -19,9 +20,11 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifCount, setNotifCount] = useState(getUnreadCount())
   const [notifs, setNotifs] = useState<Notification[]>(loadNotifications())
+  const [pendingResources, setPendingResources] = useState(0)
   const notifRef = useRef<HTMLDivElement>(null)
+  const isAdmin = user?.role === "super_admin" || user?.role === "admin"
 
-  // Refresh notifications every 3 seconds
+  // Refresh notifications every 3 seconds, + pending resources for admin
   useEffect(() => {
     const interval = setInterval(() => {
       setNotifs(loadNotifications())
@@ -29,6 +32,20 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
     }, 3000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch pending resource count for admin
+  useEffect(() => {
+    if (!isAdmin) return
+    const fetchPending = async () => {
+      try {
+        const apps = await api.bossResources.applications()
+        setPendingResources((apps || []).filter((a: any) => a.status === "pending").length)
+      } catch {}
+    }
+    fetchPending()
+    const interval = setInterval(fetchPending, 10000)
+    return () => clearInterval(interval)
+  }, [isAdmin])
 
   // Close notification dropdown when clicking outside
   useEffect(() => {
@@ -99,9 +116,9 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
         <div className="relative" ref={notifRef}>
           <button className="relative flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border hover:bg-accent transition-colors" onClick={() => setNotifOpen(!notifOpen)}>
             <Bell className="h-4 w-4" />
-            {notifCount > 0 && (
+            {(notifCount + pendingResources) > 0 && (
               <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-destructive text-[8px] sm:text-[9px] font-bold text-destructive-foreground">
-                {notifCount > 9 ? "9+" : notifCount}
+                {notifCount + pendingResources > 9 ? "9+" : notifCount + pendingResources}
               </span>
             )}
           </button>
@@ -114,7 +131,21 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
                 )}
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {notifs.length === 0 ? (
+                {isAdmin && pendingResources > 0 && (
+                  <div
+                    className="px-4 py-3 border-b bg-blue-50/50 dark:bg-blue-900/20 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 cursor-pointer transition-colors"
+                    onClick={() => { navigate("/resources"); setNotifOpen(false) }}
+                  >
+                    <div className="flex items-start gap-2">
+                      <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                      <div>
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">待审批资源申请</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">有 {pendingResources} 条资源申请等待审批</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {notifs.length === 0 && pendingResources === 0 ? (
                   <div className="py-8 text-center text-sm text-muted-foreground">
                     <Bell className="h-6 w-6 mx-auto mb-2 opacity-40" />
                     暂无通知

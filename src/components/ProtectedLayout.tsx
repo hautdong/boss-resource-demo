@@ -76,13 +76,18 @@ export function ProtectedLayout() {
         stages: [
           {
             targetSelector: "#resource-tab",
-            title: "📦 申请BOSS资源（1/2）",
+            title: "📦 申请BOSS资源（1/3）",
             description: "点击「资源申请」标签页，进入资源申请界面。",
           },
           {
+            targetSelector: "#resource-type-license",
+            title: "📦 申请BOSS资源（2/3）",
+            description: "点击选择「营业执照」资源类型，系统将自动选中。",
+          },
+          {
             targetSelector: "#resource-submit-btn",
-            title: "📦 申请BOSS资源（2/2）",
-            description: "选择资源类型后，点击「提交申请」按钮完成资源申请，进度条将自动推进。",
+            title: "📦 申请BOSS资源（3/3）",
+            description: "填写申请说明后，点击「提交申请」按钮完成资源申请。",
           },
         ],
       }

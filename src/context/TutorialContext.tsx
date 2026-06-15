@@ -5,7 +5,7 @@ import { useAuth } from "./AuthContext"
 export const TUTORIAL_STEPS = [
   { id: "register",    title: "📝 注册账号",       desc: "注册成功！接下来请完成学习资料阅读" },
   { id: "study",       title: "📖 学习资料",       desc: "请阅读学习资料，了解平台使用规则" },
-  { id: "exam",        title: "📝 参加考试",        desc: "学习完成后参加考试，通过后获得积分" },
+  { id: "exam",        title: "📝 参加考试",        desc: "学习完成后参加考试，通过后获得姚币" },
   { id: "apply",       title: "📦 申请BOSS资源",     desc: "进入BOSS资源页面，查看可用资源" },
   { id: "exchange",    title: "🎯 兑换VIP账号",     desc: "在资源申请中选择VIP账号，完成兑换" },
   { id: "complete",    title: "🎉 教程完成",          desc: "恭喜！你已完成所有新手教程" },

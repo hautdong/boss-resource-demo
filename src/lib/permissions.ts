@@ -50,9 +50,7 @@ const PERMISSION_MAP: Record<UserRole, Permission[]> = {
   boss: [
     "view_dashboard",
     "view_profile",
-    "view_management",
     "view_resources",
-    "view_statistics",
     "view_bugs",
   ],
   developer: [
