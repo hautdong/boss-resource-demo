@@ -2,13 +2,14 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
-import { Input } from "../components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
-import { Upload, FileText, Download, CheckCircle2, Trophy } from "lucide-react"
+import { Upload, FileText, Download, CheckCircle2, Trophy, Clock, Search, AlertCircle, X } from "lucide-react"
 import { useAuth } from "../context/AuthContext"
+import { useTutorial } from "../context/TutorialContext"
 import { api } from "../lib/api"
+import { loadApplications, saveApplication, updateApplication, type ResourceApplication } from "../lib/resourceStorage"
 
 // ─── Resource Types ───
 const RESOURCE_TYPES = [
@@ -18,36 +19,62 @@ const RESOURCE_TYPES = [
   { id: "other", name: "其他资源", desc: "其他BOSS平台资源", icon: "📦" },
 ]
 
+function getResourceName(typeId: string): string {
+  return RESOURCE_TYPES.find((r) => r.id === typeId)?.name || typeId
+}
+
 // ═══════════════════════════════════════════════
 // BossResourceApply — BOSS 提交资源申请
 // ═══════════════════════════════════════════════
 function BossResourceApply() {
   const { user } = useAuth()
-  const [apps, setApps] = useState<any[]>([])
+  const tutorial = useTutorial()
+  const [apps, setApps] = useState<ResourceApplication[]>([])
   const [selectedType, setSelectedType] = useState("")
   const [reason, setReason] = useState("")
-  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const fetchApps = useCallback(async () => {
-    try {
-      const data = await api.bossResources.applications()
-      setApps(data || [])
-    } catch (e) { console.error(e) }
-    finally { setLoading(false) }
-  }, [])
+  const fetchApps = useCallback(() => {
+    const all = loadApplications()
+    setApps(all.filter((a) => a.userId === user?.id))
+  }, [user?.id])
 
   useEffect(() => { fetchApps() }, [fetchApps])
 
   const handleApply = async () => {
-    if (!selectedType) return alert("请选择资源类型")
+    if (!user) return
+    if (!selectedType) {
+      alert("请选择资源类型")
+      return
+    }
+    if (!reason.trim()) {
+      alert("请填写申请说明")
+      return
+    }
+
     setSubmitting(true)
     try {
-      await api.bossResources.apply({ resourceType: selectedType, reason })
+      // Save to localStorage
+      const app: ResourceApplication = {
+        id: "app_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8),
+        userId: user.id,
+        userName: user.name,
+        userPhone: user.username,
+        userDepartment: user.department,
+        resourceType: selectedType,
+        reason: reason.trim(),
+        status: "pending",
+        applyDate: new Date().toISOString(),
+      }
+      saveApplication(app)
+
+      // Try API in background (fail silently)
+      api.bossResources.apply({ resourceType: selectedType, reason: reason.trim() }).catch(() => {})
+
       setSelectedType("")
       setReason("")
-      await fetchApps()
+      fetchApps()
       setShowSuccess(true)
     } catch (e: any) {
       alert("提交失败: " + (e.message || ""))
@@ -56,138 +83,177 @@ function BossResourceApply() {
     }
   }
 
-  const myApps = apps.filter(a => a.userId === user?.id)
+  const handleFinishTutorial = () => {
+    setShowSuccess(false)
+    if (tutorial.state.enabled) {
+      tutorial.finish()
+    }
+  }
 
   return (
     <>
       <div className="space-y-6">
+        {/* ── Submit Application Card ── */}
         <Card>
-        <CardHeader>
-          <CardTitle className="text-base">提交资源申请</CardTitle>
-          <CardDescription>选择需要的BOSS资源，提交后由管理员审批分配</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium mb-2">资源类型</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {RESOURCE_TYPES.map(r => (
-                  <div key={r.id}
-                    className={`rounded-xl border-2 p-4 cursor-pointer transition-all ${
-                      selectedType === r.id ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 hover:border-blue-300 dark:border-gray-700"
-                    }`}
-                    onClick={() => setSelectedType(r.id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{r.icon}</span>
-                      <div>
-                        <p className="font-medium">{r.name}</p>
-                        <p className="text-xs text-muted-foreground">{r.desc}</p>
-                      </div>
-                    </div>
-                    {selectedType === r.id && <p className="text-xs text-blue-600 mt-1">✓ 已选择</p>}
-                  </div>
-                ))}
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">提交资源申请</CardTitle>
+                <CardDescription>选择需要的BOSS资源，提交后由管理员审批分配</CardDescription>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-full px-3 py-1">
+                <Clock className="h-3.5 w-3.5" />
+                <span>{apps.filter(a => a.status === "pending").length} 条待审批</span>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-medium mb-2">申请说明</p>
-              <textarea
-                className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none"
-                rows={3}
-                placeholder="请说明申请原因..."
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-              />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Resource Type */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">资源类型 <span className="text-destructive">*</span></label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {RESOURCE_TYPES.map((r) => (
+                    <div
+                      key={r.id}
+                      className={`rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 ${
+                        selectedType === r.id
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm"
+                          : "border-border hover:border-blue-300 dark:hover:border-blue-700 hover:bg-accent/30"
+                      }`}
+                      onClick={() => setSelectedType(r.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{r.icon}</span>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{r.name}</p>
+                          <p className="text-xs text-muted-foreground">{r.desc}</p>
+                        </div>
+                        {selectedType === r.id && (
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500">
+                            <CheckCircle2 className="h-4 w-4 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reason */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">申请说明 <span className="text-destructive">*</span></label>
+                <textarea
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                  rows={3}
+                  placeholder="请详细说明申请原因及用途..."
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </div>
+
+              <Button variant="primary" className="w-full sm:w-auto" onClick={handleApply} disabled={submitting}>
+                {submitting ? "提交中..." : "提交申请"}
+              </Button>
             </div>
-            <Button variant="primary" onClick={handleApply} disabled={submitting}>
-              {submitting ? "提交中..." : "提交申请"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">我的申请记录</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {myApps.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">暂无申请记录</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>资源类型</TableHead>
-                  <TableHead>申请说明</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>分配内容</TableHead>
-                  <TableHead>申请时间</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {myApps.map(a => {
-                  let allocData: any = {}
-                  try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
-                  return (
-                  <TableRow key={a.id}>
-                    <TableCell className="font-medium">{a.resourceType === "license" ? "营业执照" : a.resourceType === "cert" ? "企业认证" : a.resourceType === "contract" ? "合同模板" : a.resourceType}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{a.reason || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={a.status === "allocated" ? "success" : "secondary"}>
-                        {a.status === "pending" ? "待审批" : "已分配"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {a.status === "allocated" && allocData.file ? (
-                        <a href={allocData.file} download={allocData.fileName || "download"} className="flex items-center gap-1 text-blue-600 hover:underline">
-                          <Download className="h-3.5 w-3.5" />
-                          {allocData.fileName || "下载附件"}
-                        </a>
-                      ) : (
-                        <span>{allocData.info || a.allocatedInfo || "-"}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}
-                    </TableCell>
-                  </TableRow>
-                )})}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        {/* ── My Application History ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">我的申请记录</CardTitle>
+            <CardDescription>共 {apps.length} 条申请记录</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {apps.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                  <FileText className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">暂无申请记录</p>
+                <p className="text-xs text-muted-foreground mt-1">提交资源申请后，记录将显示在此处</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>资源类型</TableHead>
+                      <TableHead>申请说明</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead>分配内容</TableHead>
+                      <TableHead>申请时间</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apps.map((a) => {
+                      let allocData: any = {}
+                      try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
+                      return (
+                        <TableRow key={a.id}>
+                          <TableCell className="font-medium">{getResourceName(a.resourceType)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={a.reason}>
+                            {a.reason || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={a.status === "allocated" ? "success" : "secondary"}>
+                              {a.status === "pending" ? "待审批" : "已分配"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {a.status === "allocated" && allocData.file ? (
+                              <a
+                                href={allocData.file}
+                                download={allocData.fileName || "download"}
+                                className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                {allocData.fileName || "下载附件"}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {a.allocatedInfo ? (allocData.info || "已分配") : "-"}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* 教程完成弹窗 */}
+      {/* ── Success Dialog ── */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg animate-scale-in">
               <Trophy className="h-7 w-7 text-white" />
             </div>
-            <DialogTitle className="text-center text-xl animate-fade-in">🎉 教程完成！</DialogTitle>
+            <DialogTitle className="text-center text-xl animate-fade-in">🎉 申请已提交！</DialogTitle>
             <DialogDescription className="text-center pt-2">
               <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200 dark:border-emerald-800 p-4 animate-scale-in">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 animate-pulse" />
-                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">新手教程已完成！</span>
+                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">申请已提交给管理员</span>
                 </div>
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  恭喜你已完成新手教程，后续可以用姚币兑换VIP账号和道具！
+                  请耐心等待管理员审批分配，审批完成后可在申请记录中查看结果。
                 </p>
               </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="mt-4">
-            <Button
-              variant="primary"
-              className="w-full"
-              size="lg"
-              onClick={() => setShowSuccess(false)}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-1" />确定
+          <div className="mt-4 space-y-2">
+            <Button variant="primary" className="w-full" size="lg" onClick={handleFinishTutorial}>
+              <CheckCircle2 className="h-4 w-4 mr-1" />知道了
             </Button>
           </div>
         </DialogContent>
@@ -200,21 +266,18 @@ function BossResourceApply() {
 // AdminResourceView — 超管/管理员审批资源
 // ═══════════════════════════════════════════════
 function AdminResourceView() {
-  const [apps, setApps] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [apps, setApps] = useState<ResourceApplication[]>([])
   const [allocId, setAllocId] = useState<string | null>(null)
   const [allocInfo, setAllocInfo] = useState("")
   const [allocFile, setAllocFile] = useState<string | null>(null)
   const [allocFileName, setAllocFileName] = useState("")
   const [showAllocDialog, setShowAllocDialog] = useState(false)
+  const [activeTab, setActiveTab] = useState("pending")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const fetchApps = useCallback(async () => {
-    try {
-      const data = await api.bossResources.applications()
-      setApps(data || [])
-    } catch (e) { console.error(e) }
-    finally { setLoading(false) }
+  const fetchApps = useCallback(() => {
+    const all = loadApplications()
+    setApps(all)
   }, [])
 
   useEffect(() => { fetchApps() }, [fetchApps])
@@ -222,7 +285,10 @@ function AdminResourceView() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 10 * 1024 * 1024) { alert("文件不能超过10MB"); return }
+    if (file.size > 10 * 1024 * 1024) {
+      alert("文件不能超过10MB")
+      return
+    }
     setAllocFileName(file.name)
     const reader = new FileReader()
     reader.onload = () => setAllocFile(reader.result as string)
@@ -237,145 +303,283 @@ function AdminResourceView() {
     setShowAllocDialog(true)
   }
 
-  const handleAllocate = async () => {
+  const handleAllocate = () => {
     if (!allocId) return
     const payload: any = { info: allocInfo }
-    if (allocFile) { payload.file = allocFile; payload.fileName = allocFileName }
-    try {
-      await api.bossResources.allocate(allocId, JSON.stringify(payload))
-      setApps(prev => prev.map(a => a.id === allocId ? { ...a, status: "allocated", allocatedInfo: JSON.stringify(payload) } : a))
-      setShowAllocDialog(false)
-      setAllocId(null)
-      setAllocFile(null)
-    } catch (e: any) { alert("分配失败: " + (e.message || "")) }
+    if (allocFile) {
+      payload.file = allocFile
+      payload.fileName = allocFileName
+    }
+
+    updateApplication(allocId, {
+      status: "allocated",
+      allocatedInfo: JSON.stringify(payload),
+      allocatedDate: new Date().toISOString(),
+    })
+
+    // Try API in background
+    api.bossResources.allocate(allocId, JSON.stringify(payload)).catch(() => {})
+
+    setApps((prev) =>
+      prev.map((a) =>
+        a.id === allocId
+          ? { ...a, status: "allocated" as const, allocatedInfo: JSON.stringify(payload), allocatedDate: new Date().toISOString() }
+          : a
+      )
+    )
+    setShowAllocDialog(false)
+    setAllocId(null)
+    setAllocFile(null)
+    setAllocFileName("")
   }
 
-  const pendingApps = apps.filter(a => a.status === "pending")
-  const allocatedApps = apps.filter(a => a.status === "allocated")
+  const pendingApps = apps.filter((a) => a.status === "pending")
+  const allocatedApps = apps.filter((a) => a.status === "allocated")
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="pending">
-        <TabsList>
-          <TabsTrigger value="pending">待审批 ({pendingApps.length})</TabsTrigger>
-          <TabsTrigger value="allocated">已分配</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="pending" value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="pending">
+              待审批
+              {pendingApps.length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-xs font-medium text-primary px-1.5">
+                  {pendingApps.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="allocated">
+              已分配
+              {allocatedApps.length > 0 && (
+                <span className="ml-1.5 text-xs text-muted-foreground">({allocatedApps.length})</span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {activeTab === "pending" && pendingApps.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setApps([])
+                fetchApps()
+              }}
+              className="gap-1"
+            >
+              <Search className="h-3.5 w-3.5" />
+              刷新
+            </Button>
+          )}
+        </div>
+
         <TabsContent value="pending" className="mt-4">
           <Card>
             <CardContent className="pt-6">
               {pendingApps.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">暂无待审批申请</div>
+                <div className="text-center py-12">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                    <CheckCircle2 className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">暂无待审批申请</p>
+                  <p className="text-xs text-muted-foreground mt-1">所有申请已处理完毕</p>
+                </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>申请人</TableHead>
-                      <TableHead>资源类型</TableHead>
-                      <TableHead>申请说明</TableHead>
-                      <TableHead>申请时间</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingApps.map(a => (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{a.userName}</TableCell>
-                        <TableCell>{a.resourceType === "license" ? "营业执照" : a.resourceType === "cert" ? "企业认证" : a.resourceType}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{a.reason || "-"}</TableCell>
-                        <TableCell className="text-sm">{a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" onClick={() => openAllocDialog(a.id)}>分配</Button>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>申请人</TableHead>
+                        <TableHead>部门</TableHead>
+                        <TableHead>资源类型</TableHead>
+                        <TableHead>申请说明</TableHead>
+                        <TableHead>申请时间</TableHead>
+                        <TableHead className="text-right">操作</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingApps.map((a) => (
+                        <TableRow key={a.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                {a.userName?.charAt(0) || "?"}
+                              </div>
+                              <span className="font-medium">{a.userName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{a.userDepartment || "-"}</TableCell>
+                          <TableCell>{getResourceName(a.resourceType)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={a.reason}>
+                            {a.reason || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                            {a.applyDate ? new Date(a.applyDate).toLocaleDateString("zh-CN") : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" onClick={() => openAllocDialog(a.id)}>
+                              审批分配
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="allocated" className="mt-4">
           <Card>
             <CardContent className="pt-6">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>申请人</TableHead>
-                    <TableHead>资源类型</TableHead>
-                    <TableHead>分配内容</TableHead>
-                    <TableHead>附件</TableHead>
-                    <TableHead>分配时间</TableHead>
-                    <TableHead>状态</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allocatedApps.map(a => {
-                    let allocData: any = {}
-                    try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{a.userName}</TableCell>
-                        <TableCell>{a.resourceType === "license" ? "营业执照" : a.resourceType}</TableCell>
-                        <TableCell className="text-sm">{allocData.info || a.allocatedInfo || "-"}</TableCell>
-                        <TableCell>
-                          {allocData.file ? (
-                            <a href={allocData.file} download={allocData.fileName || "download"} className="flex items-center gap-1 text-blue-600 hover:underline text-sm">
-                              <Download className="h-3.5 w-3.5" />{allocData.fileName || "下载附件"}
-                            </a>
-                          ) : "-"}
-                        </TableCell>
-                        <TableCell className="text-sm">{a.allocatedDate ? new Date(a.allocatedDate).toLocaleDateString("zh-CN") : "-"}</TableCell>
-                        <TableCell><Badge variant="success">已分配</Badge></TableCell>
+              {allocatedApps.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
+                    <FileText className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="text-sm font-medium text-muted-foreground">暂无已分配记录</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>申请人</TableHead>
+                        <TableHead>资源类型</TableHead>
+                        <TableHead>分配内容</TableHead>
+                        <TableHead>附件</TableHead>
+                        <TableHead>分配时间</TableHead>
+                        <TableHead>状态</TableHead>
                       </TableRow>
-                    )
-                  })}
-                  {allocatedApps.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">暂无已分配记录</TableCell></TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {allocatedApps.map((a) => {
+                        let allocData: any = {}
+                        try { allocData = JSON.parse(a.allocatedInfo || "{}") } catch {}
+                        return (
+                          <TableRow key={a.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                                  {a.userName?.charAt(0) || "?"}
+                                </div>
+                                <span className="font-medium">{a.userName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{getResourceName(a.resourceType)}</TableCell>
+                            <TableCell className="text-sm max-w-[180px] truncate" title={allocData.info || ""}>
+                              {allocData.info || a.allocatedInfo || "-"}
+                            </TableCell>
+                            <TableCell>
+                              {allocData.file ? (
+                                <a
+                                  href={allocData.file}
+                                  download={allocData.fileName || "download"}
+                                  className="inline-flex items-center gap-1 text-blue-600 hover:underline text-sm"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  {allocData.fileName || "下载附件"}
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {a.allocatedDate ? new Date(a.allocatedDate).toLocaleDateString("zh-CN") : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="success">已分配</Badge>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
+      {/* ── Allocation Dialog ── */}
       <Dialog open={showAllocDialog} onOpenChange={setShowAllocDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>分配资源</DialogTitle>
-            <DialogDescription>上传文件并填写分配说明</DialogDescription>
+            <DialogTitle>审批分配资源</DialogTitle>
+            <DialogDescription>上传文件并填写分配说明，完成后将由申请人查看</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            {/* File Upload */}
             <div>
-              <p className="text-sm font-medium mb-2">上传附件</p>
-              <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileChange} className="hidden" />
+              <label className="text-sm font-medium mb-2 block">上传附件</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar"
+                onChange={handleFileChange}
+                className="hidden"
+              />
               {allocFile ? (
                 <div className="rounded-lg border bg-muted/50 p-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-medium truncate max-w-[200px]">{allocFileName}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                      <span className="text-sm font-medium truncate">{allocFileName}</span>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setAllocFile(null); setAllocFileName("") }}>移除</Button>
+                    <button
+                      onClick={() => { setAllocFile(null); setAllocFileName("") }}
+                      className="shrink-0 ml-2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  {allocFile.startsWith("data:image") && <img src={allocFile} alt="预览" className="mt-2 max-h-32 rounded object-contain" />}
+                  {allocFile.startsWith("data:image") && (
+                    <img src={allocFile} alt="预览" className="mt-2 max-h-32 rounded-md object-contain bg-background" />
+                  )}
                 </div>
               ) : (
-                <div className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-6 text-center cursor-pointer hover:border-blue-400 transition-colors" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">点击或拖拽上传文件</p>
-                  <p className="text-xs text-muted-foreground mt-1">支持图片、PDF，最大10MB</p>
+                <div
+                  className="rounded-lg border-2 border-dashed border-border p-6 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">点击上传文件</p>
+                  <p className="text-xs text-muted-foreground mt-1">支持图片、PDF、Word、Excel，最大10MB</p>
                 </div>
               )}
             </div>
+
+            {/* Allocation Info */}
             <div>
-              <p className="text-sm font-medium mb-2">补充说明</p>
-              <textarea className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none" rows={2} placeholder="输入分配说明..." value={allocInfo} onChange={e => setAllocInfo(e.target.value)} />
+              <label className="text-sm font-medium mb-2 block">分配说明</label>
+              <textarea
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                rows={2}
+                placeholder="输入分配说明..."
+                value={allocInfo}
+                onChange={(e) => setAllocInfo(e.target.value)}
+              />
             </div>
+
+            {!allocInfo.trim() && !allocFile && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  建议填写分配说明或上传附件，以便申请人了解分配详情
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2 mt-2">
-            <Button variant="outline" onClick={() => setShowAllocDialog(false)}>取消</Button>
-            <Button onClick={handleAllocate}>确认分配</Button>
+            <Button variant="outline" onClick={() => setShowAllocDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleAllocate} disabled={!allocInfo.trim() && !allocFile}>
+              确认分配
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -383,20 +587,33 @@ function AdminResourceView() {
   )
 }
 
+// ═══════════════════════════════════════════════
+// ResourceApplication — Page Entry
+// ═══════════════════════════════════════════════
 export default function ResourceApplication() {
   const { user } = useAuth()
   const isBoss = user?.role === "boss"
   const isAdmin = user?.role === "super_admin" || user?.role === "admin"
+
+  // 刷新按钮 — 长按或点击清除教程缓存用（隐藏功能），未激活用户也显示引导
+  if (!user) return null
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight gradient-text">资源申请</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isBoss ? "选择需要的BOSS资源，提交申请" : "管理资源申请，审批分配"}
+          {isBoss ? "选择需要的BOSS资源，提交申请等待管理员审批分配" : "管理所有资源申请，审批并分配资源"}
         </p>
       </div>
-      {isBoss ? <BossResourceApply /> : <AdminResourceView />}
+      {isBoss ? <BossResourceApply /> : isAdmin ? <AdminResourceView /> : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">您没有权限访问资源申请模块</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
