@@ -7,11 +7,11 @@ import { ActivationGuard } from "./components/ActivationGuard"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
 import ForgotPassword from "./pages/ForgotPassword"
-import Activation from "./pages/Activation"
 import Dashboard from "./pages/Dashboard"
 import PersonalInfo from "./pages/PersonalInfo"
 import AccountManagement from "./pages/AccountManagement"
 import ResourceManagement from "./pages/ResourceManagement"
+import ResourceApplication from "./pages/ResourceApplication"
 import DataStatistics from "./pages/DataStatistics"
 import OperationLogs from "./pages/OperationLogs"
 import BugTracker from "./pages/BugTracker"
@@ -37,6 +37,7 @@ function App() {
                 <Route path="profile" element={<PersonalInfo />} />
                 <Route path="management" element={<AccountManagement />} />
                 <Route path="resources" element={<ResourceManagement />} />
+                <Route path="resource-apply" element={<ResourceApplication />} />
                 <Route path="statistics" element={<DataStatistics />} />
                 <Route path="logs" element={<OperationLogs />} />
                 <Route path="bugs" element={<BugTracker />} />

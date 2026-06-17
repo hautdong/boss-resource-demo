@@ -1,16 +1,14 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { useTutorial, TUTORIAL_STEPS } from "../context/TutorialContext"
-import { api } from "../lib/api"
+import { useTutorial } from "../context/TutorialContext"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
 import {
-  BookOpen, FileText, GraduationCap, CheckCircle2, XCircle,
+  BookOpen, GraduationCap, CheckCircle2, XCircle,
   AlertCircle, Clock, Trophy, Loader2,
-  BookMarked, ChevronLeft, ChevronRight, ChevronDown, Send,
-  Maximize2, Minimize2, ArrowLeft, LogOut, RefreshCw, Star, Gift
+  ChevronLeft, ChevronRight, ChevronDown, Send,
+  LogOut
 } from "lucide-react"
 import questions from "../data/examQuestions"
 import ForcedReader from "../components/ForcedReader"
@@ -20,89 +18,7 @@ const EXAM_QUESTION_COUNT = 20
 const PASS_SCORE = 80
 const EXAM_TIME = 1200 // 20 minutes
 const RETRY_COOLDOWN = 3600000 // 1 hour in ms
-const PASS_REWARD_POINTS = 5
-
-function getPoints(userKey: string): number {
-  // 尝试从 localStorage 读取（离线兜底）
-  try { return Number(localStorage.getItem(`boss-points-${userKey}`)) || 0 } catch { return 0 }
-}
-
-function getLastPointsTime(userKey: string): string {
-  try { return localStorage.getItem(`boss-points-last-time-${userKey}`) || "" } catch { return "" }
-}
-
-function addPoints(amount: number, userKey: string, _userId?: string): number {
-  const current = getPoints(userKey)
-  const total = current + amount
-  localStorage.setItem(`boss-points-${userKey}`, String(total))
-  if (current <= 0 && amount > 0) {
-    localStorage.setItem(`boss-points-first-time-${userKey}`, new Date().toISOString())
-  }
-  localStorage.setItem(`boss-points-last-time-${userKey}`, new Date().toISOString())
-  // 后端积分由 completeExam → api.exam.submit 统一添加，这里只写 localStorage
-  return total
-}
-
-const learningMaterials = [
-  {
-    id: "manual",
-    title: "BOSS直聘产品使用手册",
-    file: "/learning-materials/【BOSS直聘产品使用手册】培训.pdf",
-    icon: BookMarked,
-    color: "text-indigo-500",
-    bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
-  },
-  {
-    id: "rules",
-    title: "招聘行为管理规范",
-    file: "/learning-materials/招聘行为管理规范【规则】.pdf",
-    icon: FileText,
-    color: "text-amber-500",
-    bgColor: "bg-amber-100 dark:bg-amber-900/30",
-  },
-  {
-    id: "agreement",
-    title: "BOSS直聘用户协议",
-    file: "/learning-materials/BOSS直聘用户协议.pdf",
-    icon: BookOpen,
-    color: "text-emerald-500",
-    bgColor: "bg-emerald-100 dark:bg-emerald-900/30",
-  },
-]
-
-type Phase = "intro" | "study" | "exam" | "result"
-
-// ── 教程步骤进度条组件 ──
-const STEP_IDS = ["register", "study", "exam", "apply", "exchange"] as const
-const STEP_ICONS_MAP: Record<string, string> = { register: "📝", study: "📖", exam: "📝", apply: "📦", exchange: "🎯" }
-
-function TutorialStepsBar({ currentStep }: { currentStep: "study" | "exam" }) {
-  const currentIdx = currentStep === "study" ? 1 : 2
-  return (
-    <div className="px-3 py-1.5 flex items-center gap-0.5 overflow-x-auto border-t border-amber-100/50 dark:border-amber-800/20 bg-gradient-to-r from-amber-50/40 via-transparent to-amber-50/40 dark:from-amber-900/5 dark:to-amber-900/5">
-      {STEP_IDS.map((id, idx) => {
-        const isDone = idx < currentIdx
-        const isCurrent = idx === currentIdx
-        const stepLabel = TUTORIAL_STEPS.find(s => s.id === id)?.title.replace(/[📝📖📦🎯🎉\s]/g, "") || id
-        return (
-          <div key={id} className="flex items-center gap-0.5 shrink-0">
-            {idx > 0 && <ChevronRight className="h-3 w-3 text-gray-300 dark:text-gray-600 shrink-0 mx-0.5" />}
-            <div className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all ${
-              isDone
-                ? "bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400"
-                : isCurrent
-                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-400"
-                : "text-gray-400 dark:text-gray-500"
-            }`}>
-              {isDone ? <CheckCircle2 className="h-3 w-3" /> : <span className="text-[10px]">{STEP_ICONS_MAP[id]}</span>}
-              <span>{stepLabel}</span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+type Phase = "study" | "exam" | "result"
 
 export default function Activation() {
   const navigate = useNavigate()
@@ -111,7 +27,7 @@ export default function Activation() {
   const userKey = `${user?.name || "unknown"}-${user?.phone || user?.username || "unknown"}`
 
   // ── Phase control ──
-  const [phase, setPhase] = useState<Phase>("intro")
+  const [phase, setPhase] = useState<Phase>("study")
 
   // ── Learning state ──
   const [studyCompleted, setStudyCompleted] = useState(false)
@@ -134,7 +50,7 @@ export default function Activation() {
   // ── Exam state ──
   const [examAttempt, setExamAttempt] = useState(1)
   const cooldownStorageKey = `boss-last-failed-time-${userKey}`
-  const [lastFailedTime, setLastFailedTime] = useState(() => {
+  const [, setLastFailedTime] = useState(() => {
     try {
       return Number(localStorage.getItem(cooldownStorageKey)) || 0
     } catch { return 0 }
@@ -148,8 +64,6 @@ export default function Activation() {
     (() => { try { return Number(localStorage.getItem(cooldownStorageKey)) || 0 } catch { return 0 } })()
   ))
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [showPointsDialog, setShowPointsDialog] = useState(false)
-  const [earnedPoints, setEarnedPoints] = useState(0)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string[]>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -157,8 +71,6 @@ export default function Activation() {
   const [timeLeft, setTimeLeft] = useState(EXAM_TIME)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [showReview, setShowReview] = useState(true)
-
-  const allStudied = studyCompleted
 
   // ── Select 20 random questions from the pool, re-shuffle per attempt ──
   const examQuestions = useMemo(() => {
@@ -297,26 +209,24 @@ export default function Activation() {
       setLastFailedTime(now)
       localStorage.setItem(cooldownStorageKey, String(now))
       setCooldownLeft(Math.floor(RETRY_COOLDOWN / 1000))
+      await completeExam(totalScore, false)
     } else {
-      // 考试通过，奖励姚币（服务端自动加积分）
-      setEarnedPoints(PASS_REWARD_POINTS)
+      await completeExam(totalScore, true)
       tutorial.goTo("apply")
+      navigate("/resource-apply", { replace: true })
+      return
     }
-    await completeExam(totalScore, passed)
     setSubmitted(false)
     setPhase("result")
-    if (passed) setShowPointsDialog(true)
   }
 
   const handleSkipExam = async () => {
     setScore(100)
     setSubmitted(true)
-    setEarnedPoints(PASS_REWARD_POINTS)
-    await completeExam(100, true)
     tutorial.goTo("apply")
+    await completeExam(100, true)
     setSubmitted(false)
-    setPhase("result")
-    setShowPointsDialog(true)
+    navigate("/resource-apply", { replace: true })
   }
 
   const formatTime = (s: number) =>
@@ -329,174 +239,6 @@ export default function Activation() {
         return ua.length === q.answer.length && ua.every((a) => q.answer.includes(a))
       }).length
     : 0
-
-  // ═══════════════════════════════════════════
-  // INTRO PHASE
-  // ═══════════════════════════════════════════
-
-  if (phase === "intro") {
-    const currentStepId = tutorial.stepInfo?.id || "register"
-    const currentStepIdx = TUTORIAL_STEPS.findIndex(s => s.id === currentStepId)
-    const activeTutorialSteps = TUTORIAL_STEPS.filter(s => s.id !== "complete")
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-6">
-        <div className="w-full max-w-xl animate-fade-in">
-          <button
-            onClick={() => { logout(); navigate("/login", { replace: true }) }}
-            className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-          >
-            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-            返回登录
-          </button>
-
-          {/* ── 金手指 + 标题 ── */}
-          <div className="text-center mb-6 hidden">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-400/30 mb-4 animate-bounce-soft">
-              <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8 text-white">
-                <path d="M7 11.5C7 10.12 8.12 9 9.5 9C9.67 9 9.83 9.03 10 9.08V5.5C10 4.67 10.67 4 11.5 4C12.33 4 13 4.67 13 5.5V8.5C13 8.5 14 7.5 15.5 7.5C16.33 7.5 17 8.17 17 9V12.5L17 14.5C17 17.54 14.54 20 11.5 20C9.5 20 7.79 18.72 7.09 16.95C6.92 16.54 6.77 16.12 6.64 15.69L5.94 13.58C5.67 12.73 6.04 11.83 6.87 11.52C6.96 11.48 7.05 11.46 7.14 11.45C7.05 11.31 7 11.14 7 11Z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold gradient-text">新手引导 · 账号激活</h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              欢迎你，<span className="font-semibold text-foreground">{user?.name}</span>！
-            </p>
-            <Badge variant="outline" className="mt-2 border-amber-400 text-amber-600 dark:text-amber-400">
-              <AlertCircle className="h-3 w-3 mr-1" />
-              成员BOSS 需完成学习与考试才能激活账号
-            </Badge>
-          </div>
-
-          {/* ── 5步教程进度条 ── */}
-          <div className="rounded-xl border bg-card p-4 mb-4">
-            <p className="text-xs font-medium text-muted-foreground mb-3 text-center">📋 新手引导进度</p>
-            <div className="flex items-center justify-between">
-              {activeTutorialSteps.map((step, idx) => {
-                const isDone = idx < currentStepIdx
-                const isCurrent = idx === currentStepIdx
-                return (
-                  <div key={step.id} className="flex flex-col items-center gap-1.5 flex-1">
-                    {idx > 0 && (
-                      <div className="absolute -translate-y-[-14px] w-[calc(100%/5-28px)]" style={{ display: "none" }} />
-                    )}
-                    <div className={`relative flex h-9 w-9 items-center justify-center rounded-full text-sm transition-all ${
-                      isDone
-                        ? "bg-emerald-500 text-white shadow-sm shadow-emerald-400/30"
-                        : isCurrent
-                        ? "bg-gradient-to-br from-amber-300 to-yellow-500 text-white shadow-md shadow-amber-400/40 animate-pulse ring-2 ring-amber-300"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
-                    }`}>
-                      {isDone ? <CheckCircle2 className="h-4 w-4" /> : STEP_ICONS_MAP[step.id]}
-                    </div>
-                    {idx < activeTutorialSteps.length - 1 && (
-                      <div className={`h-0.5 flex-1 w-full -mb-1 transition-all ${
-                        isDone ? "bg-emerald-300" : "bg-gray-200 dark:bg-gray-700"
-                      }`} style={{ width: "calc(100% + 8px)" }} />
-                    )}
-                    <span className={`text-[10px] font-medium transition-colors ${
-                      isDone ? "text-emerald-600 dark:text-emerald-400" :
-                      isCurrent ? "text-amber-600 dark:text-amber-400" :
-                      "text-gray-400 dark:text-gray-500"
-                    }`}>
-                      {step.title.replace(/[📝📖📦🎯🎉\s]/g, "")}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-            <div className="flex items-center mt-1 px-1">
-              {activeTutorialSteps.map((_, idx) => (
-                <div key={idx} className="flex-1 flex items-center">
-                  <div className={`h-1.5 rounded-full flex-1 transition-all duration-500 ${
-                    idx < currentStepIdx ? "bg-emerald-400" :
-                    idx === currentStepIdx ? "bg-amber-400" :
-                    "bg-gray-200 dark:bg-gray-700"
-                  }`} />
-                  {idx < activeTutorialSteps.length - 1 && <div className="w-1" />}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── 当前步骤引导卡片 ── */}
-          <div className="rounded-xl border-2 border-amber-300/60 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/10 dark:to-yellow-900/10 p-4 mb-4">
-            <div className="flex items-start gap-3">
-              <div className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 shadow">
-                <span className="text-sm">{STEP_ICONS_MAP[currentStepId]}</span>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                  {TUTORIAL_STEPS[currentStepIdx]?.title || "开始引导"}
-                </h3>
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-                  {TUTORIAL_STEPS[currentStepIdx]?.desc || "点击下方按钮开始账号激活流程"}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── 步骤说明卡片 ── */}
-          <div className="space-y-3">
-            <div className="rounded-xl border bg-card p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                  currentStepIdx >= 1 
-                    ? "bg-emerald-100 dark:bg-emerald-900/30 ring-2 ring-emerald-300" 
-                    : "bg-indigo-100 dark:bg-indigo-900/30"
-                }`}>
-                  <BookOpen className={`h-5 w-5 ${
-                    currentStepIdx >= 1 ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"
-                  }`} />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">第一步：学习资料</h3>
-                  <p className="text-xs text-muted-foreground">阅读 3 份培训资料，标记为已学习</p>
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                {learningMaterials.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <m.icon className={`h-3.5 w-3.5 ${m.color}`} />
-                    <span>{m.title}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-xl border bg-card p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-sm">第二步：闭卷考试</h3>
-                  <p className="text-xs text-muted-foreground">
-                    随机抽 20 题 · 满分 100 分 · 通过线 80 分 · 限时 20 分钟
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              id="enter-study-btn"
-              variant="primary"
-              className="w-full"
-              size="lg"
-              onClick={() => {
-                if (tutorial.state.enabled && tutorial.state.step < 1) {
-                  tutorial.goTo("study")
-                }
-                setPhase("study")
-              }}
-            >
-              <BookOpen className="h-5 w-5 mr-2" />
-              进入学习与考试
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   // ═══════════════════════════════════════════
   // RESULT PHASE
@@ -732,42 +474,6 @@ export default function Activation() {
             </div>
           )}
         </div>
-
-        {/* 积分奖励弹窗 */}
-        <Dialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
-          <DialogContent className="text-center max-w-sm">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-yellow-500 mb-4 shadow-lg animate-bounce-soft">
-              <Trophy className="h-8 w-8 text-white" />
-            </div>
-            <DialogHeader>
-              <DialogTitle className="text-center text-xl animate-fade-in">🎉 恭喜！账号激活成功</DialogTitle>
-              <DialogDescription className="text-center pt-2 space-y-3">
-                <p className="text-muted-foreground">
-                  考试成绩 <span className="font-bold text-foreground">{score} 分</span>，已通过考试！
-                </p>
-                <div className="rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border border-amber-200 dark:border-amber-800 p-4 animate-scale-in">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Star className="h-5 w-5 text-amber-500 fill-amber-500 animate-pulse" />
-                    <span className="text-lg font-bold text-amber-700 dark:text-amber-400">+{PASS_REWARD_POINTS} 姚币</span>
-                  </div>
-                  <p className="text-sm text-amber-600 dark:text-amber-400">
-                    恭喜获得 {PASS_REWARD_POINTS} 姚币，可用于后续道具兑换！
-                  </p>
-                </div>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="mt-4">
-              <Button
-                variant="primary"
-                className="w-full"
-                size="lg"
-                onClick={() => setShowPointsDialog(false)}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-1" />确定
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     )
   }
@@ -820,8 +526,6 @@ export default function Activation() {
               </button>
             </div>
           </div>
-          {/* 教程步骤指示器 */}
-          <TutorialStepsBar currentStep="study" />
         </header>
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden" id="study-content-wrapper">
@@ -1020,7 +724,6 @@ export default function Activation() {
             style={{ width: `${((currentIndex + 1) / EXAM_QUESTION_COUNT) * 100}%` }}
           />
         </div>
-        <TutorialStepsBar currentStep="exam" />
       </header>
 
       {/* ── Exam Body ── */}

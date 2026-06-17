@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
-import { Input } from "../components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
@@ -11,7 +10,6 @@ import {
   Plus, Trash2, Send, CreditCard, Database, CheckCircle2, Star, Gift, Package, Upload, FileText, Download, Eye
 } from "lucide-react"
 import { useAuth } from "../context/AuthContext"
-import { useTutorial } from "../context/TutorialContext"
 import { api } from "../lib/api"
 
 // ─── Helpers ───
@@ -24,7 +22,7 @@ function safeId(): string {
 // Product Catalog
 // ═══════════════════════════════════════════════
 const PRODUCT_CATALOG = [
-  { id: "vip", name: "VIP账号", type: "账号", unitPrice: "4800/年", desc: "基础VIP招聘账号", icon: "👑", pointsCost: 5 },
+  { id: "vip", name: "VIP账号", type: "账号", unitPrice: "4800/年", desc: "基础VIP招聘账号 免费兑换", icon: "👑", pointsCost: 0 },
   { id: "vvip-select", name: "VVIP账号-精选版", type: "账号", unitPrice: "8000/年", desc: "精选人才推荐", icon: "💎", pointsCost: 10 },
   { id: "vvip-exposure", name: "VVIP账号-曝光版", type: "账号", unitPrice: "8000/年", desc: "高曝光招聘位", icon: "🚀", pointsCost: 10 },
   { id: "top-card", name: "置顶卡", type: "道具", unitPrice: "498/张", desc: "职位置顶曝光", icon: "📌", pointsCost: 3 },
@@ -99,17 +97,19 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
 
   const handleExchange = useCallback(async () => {
     if (!product || !user) return
-    if (totalCost > points) return alert("姚币不足，无法兑换")
+    if (totalCost > 0 && totalCost > points) return alert("姚币不足，无法兑换")
     setExchanging(true)
     try {
-      await api.points.add(user.id, -totalCost, `兑换 ${product.name} x${quantity}`, "exchange")
+      if (totalCost > 0) {
+        await api.points.add(user.id, -totalCost, `兑换 ${product.name} x${quantity}`, "exchange")
+        setPoints(p => p - totalCost)
+      }
       await api.orders.create({
         productId: product.id,
         productName: product.name,
         pointsCost: product.pointsCost,
         quantity,
       })
-      setPoints(p => p - totalCost)
       const updated = await api.orders.list()
       setOrders(updated || [])
       setShowConfirm(false)
@@ -156,9 +156,9 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
             <div key={p.id} id={p.id === "vip" ? "vip-exchange-card" : undefined}>
             <Card key={p.id} className={`cursor-pointer transition-all hover:shadow-md ${
               selectedProduct === p.id ? "ring-2 ring-amber-400 shadow-lg" : ""
-            } ${points < p.pointsCost ? "opacity-60" : ""}`}
+            } ${points < p.pointsCost && p.pointsCost > 0 ? "opacity-60" : ""}`}
             onClick={() => {
-              if (points < p.pointsCost) { alert(`姚币不足！${p.name} 需要 ${p.pointsCost} 姚币，你当前只有 ${points} 姚币。考试通过可获得姚币。`); return }
+              if (p.pointsCost > 0 && points < p.pointsCost) { alert(`姚币不足！${p.name} 需要 ${p.pointsCost} 姚币，你当前只有 ${points} 姚币。考试通过可获得姚币。`); return }
               setSelectedProduct(p.id)
             }}
             >
@@ -177,7 +177,7 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
                   <span className="text-xs text-muted-foreground">¥{p.unitPrice}</span>
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
-                    <span className="font-bold text-amber-600">{p.pointsCost} 姚币</span>
+                    <span className="font-bold text-amber-600">{p.pointsCost === 0 ? "免费" : `${p.pointsCost} 姚币`}</span>
                   </div>
                 </div>
               </CardContent>
@@ -196,7 +196,7 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
               兑换 {product.name}
             </CardTitle>
             <CardDescription>
-              {product.desc} · ¥{product.unitPrice} · {product.pointsCost} 姚币/份
+              {product.desc} · ¥{product.unitPrice} · {product.pointsCost === 0 ? "免费" : `${product.pointsCost} 姚币/份`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -208,16 +208,17 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
                 <Button variant="outline" size="sm" onClick={() => setQuantity(q => q + 1)}>+</Button>
               </div>
               <div className="text-sm">
-                合计：<span className="font-bold text-amber-600">{totalCost} 姚币</span>
+                合计：<span className="font-bold text-amber-600">{totalCost === 0 ? "免费" : `${totalCost} 姚币`}</span>
               </div>
               <button
+                id="exchange-confirm-btn"
                 className="inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 h-9 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 ml-auto"
                 style={{ position: "relative", zIndex: 999999, pointerEvents: "auto" } as React.CSSProperties}
                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setShowConfirm(true); }}
-                disabled={totalCost > points}
+                disabled={totalCost > 0 && totalCost > points}
               >
                 <Send className="h-4 w-4 mr-1" />
-                {totalCost > points ? `姚币不足 (需${totalCost})` : "确认兑换"}
+                {totalCost > 0 && totalCost > points ? `姚币不足 (需${totalCost})` : totalCost === 0 ? "免费兑换" : "确认兑换"}
               </button>
             </div>
           </CardContent>
@@ -281,13 +282,15 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
           <DialogHeader>
             <DialogTitle>确认兑换</DialogTitle>
             <DialogDescription>
-              确认使用 {totalCost} 姚币兑换 {quantity} 份 {product?.name}？
+              {totalCost === 0
+                ? `确认免费兑换 ${quantity} 份 ${product?.name}？提交后由管理员审核发放。`
+                : `确认使用 ${totalCost} 姚币兑换 ${quantity} 份 ${product?.name}？`}
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setShowConfirm(false)} disabled={exchanging}>取消</Button>
-            <Button variant="primary" onClick={handleExchange} disabled={exchanging || totalCost > points}>
-              {exchanging ? "兑换中..." : <><CheckCircle2 className="h-4 w-4 mr-1" />确认兑换 ({totalCost} 姚币)</>}
+            <Button variant="primary" onClick={handleExchange} disabled={exchanging || (totalCost > 0 && totalCost > points)}>
+              {exchanging ? "兑换中..." : <><CheckCircle2 className="h-4 w-4 mr-1" />{totalCost === 0 ? "免费兑换" : `确认兑换 (${totalCost} 姚币)`}</>}
             </Button>
           </div>
         </DialogContent>
@@ -320,8 +323,6 @@ function BossExchangeView({ onExchanged }: { onExchanged?: () => void }) {
 function AdminOrderView() {
   const [orders, setOrders] = useState<ExchangeOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [shipAccount, setShipAccount] = useState("")
-  const [shipPassword, setShipPassword] = useState("")
   const [shippingId, setShippingId] = useState<string | null>(null)
   const [showShipDialog, setShowShipDialog] = useState(false)
 
@@ -340,27 +341,22 @@ function AdminOrderView() {
 
   const openShipDialog = (id: string) => {
     setShippingId(id)
-    setShipAccount("")
-    setShipPassword("")
     setShowShipDialog(true)
   }
 
   const handleShip = useCallback(async () => {
-    if (!shippingId || !shipAccount) return
-    const accountInfo = `${shipAccount} / ${shipPassword || '无密码'}`
+    if (!shippingId) return
     try {
-      await api.orders.ship(shippingId, accountInfo)
+      await api.orders.ship(shippingId, "已发放")
       setOrders(prev => prev.map(o =>
-        o.id === shippingId ? { ...o, status: "shipped", shippedAccount: accountInfo } : o
+        o.id === shippingId ? { ...o, status: "shipped", shippedAccount: "已发放" } : o
       ))
       setShowShipDialog(false)
       setShippingId(null)
-      setShipAccount("")
-      setShipPassword("")
     } catch (e: any) {
       alert("发货失败: " + (e.message || ""))
     }
-  }, [shippingId, shipAccount, shipPassword])
+  }, [shippingId])
 
   const pendingOrders = orders.filter(o => o.status === "pending")
   const shippedOrders = orders.filter(o => o.status === "shipped" || o.status === "completed")
@@ -434,7 +430,6 @@ function AdminOrderView() {
                     <TableHead>用户</TableHead>
                     <TableHead>商品</TableHead>
                     <TableHead>数量</TableHead>
-                    <TableHead>发放账号</TableHead>
                     <TableHead>时间</TableHead>
                     <TableHead>状态</TableHead>
                   </TableRow>
@@ -445,7 +440,6 @@ function AdminOrderView() {
                       <TableCell className="font-medium">{o.userName}</TableCell>
                       <TableCell>{o.productName}</TableCell>
                       <TableCell>{o.quantity}</TableCell>
-                      <TableCell className="text-sm font-mono">{o.shippedAccount || "-"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {o.orderDate ? new Date(o.orderDate).toLocaleDateString("zh-CN") : "-"}
                       </TableCell>
@@ -464,22 +458,12 @@ function AdminOrderView() {
       <Dialog open={showShipDialog} onOpenChange={setShowShipDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>发放账号</DialogTitle>
-            <DialogDescription>填写 VIP 账号和密码，确认后申请者可在兑换记录中查看。</DialogDescription>
+            <DialogTitle>确认发货</DialogTitle>
+            <DialogDescription>确认后将通知申请者兑换已处理。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <p className="text-sm font-medium mb-1.5">VIP 账号</p>
-              <Input placeholder="请输入VIP账号" value={shipAccount} onChange={e => setShipAccount(e.target.value)} />
-            </div>
-            <div>
-              <p className="text-sm font-medium mb-1.5">VIP 密码</p>
-              <Input placeholder="请输入VIP密码" value={shipPassword} onChange={e => setShipPassword(e.target.value)} />
-            </div>
-          </div>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setShowShipDialog(false)}>取消</Button>
-            <Button onClick={handleShip} disabled={!shipAccount}>确认发放</Button>
+            <Button onClick={handleShip}>确认发放</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -859,9 +843,7 @@ function AdminResourceView() {
 // ═══════════════════════════════════════════════
 export default function ResourceManagement() {
   const { user } = useAuth()
-  const tutorial = useTutorial()
   const isBoss = user?.role === "boss"
-  const isAdmin = user?.role === "super_admin" || user?.role === "admin"
 
   return (
     <div className="space-y-6">
@@ -871,19 +853,7 @@ export default function ResourceManagement() {
           {isBoss ? "用姚币兑换VIP账号和道具资源" : "管理BOSS兑换订单，审批发货"}
         </p>
       </div>
-
-      <Tabs defaultValue="resources">
-        <TabsList>
-          <TabsTrigger value="resources" id="resource-tab">资源申请</TabsTrigger>
-          <TabsTrigger value="exchange" id="exchange-tab">姚币兑换</TabsTrigger>
-        </TabsList>
-        <TabsContent value="resources" className="mt-4">
-          {isBoss ? <BossResourceApply onSubmitted={() => tutorial.goTo("exchange")} /> : <AdminResourceView />}
-        </TabsContent>
-        <TabsContent value="exchange" className="mt-4">
-          {isBoss ? <BossExchangeView onExchanged={() => tutorial.next()} /> : <AdminOrderView />}
-        </TabsContent>
-      </Tabs>
+      {isBoss ? <BossExchangeView /> : <AdminOrderView />}
     </div>
   )
 }

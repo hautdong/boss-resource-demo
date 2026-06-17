@@ -1,12 +1,10 @@
 import { Navigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
-import { useTutorial } from "../context/TutorialContext"
 import TutorialGuide from "./TutorialGuide"
 import Activation from "../pages/Activation"
 
 export function ActivationGuard() {
   const { isAuthenticated, isLoading, user } = useAuth()
-  const { isActive: tutorialActive } = useTutorial()
 
   if (isLoading) {
     return (
@@ -29,10 +27,8 @@ export function ActivationGuard() {
 
   return (
     <>
-      <div className={tutorialActive ? "pt-12" : ""}>
-        <Activation />
-      </div>
       <TutorialGuide />
+      <Activation />
     </>
   )
 }
