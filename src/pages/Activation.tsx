@@ -248,13 +248,12 @@ export default function Activation() {
     setShowPassDialog(true)
   }
 
-  // 确认通过弹窗 → 先跳转再更新状态，避开 ActivationGuard 的拦截
+  // 确认通过 → 整页跳转到资源申请页（绕过路由守卫）
+  // 跳转后页面刷新，AuthContext 从服务器获取已激活的用户信息
   const confirmActivation = () => {
     if (!confirmActivationCalled.current) {
       confirmActivationCalled.current = true
-      navigate("/resource-apply", { replace: true })
-      // 延迟更新 user 状态，让 navigation 先完成
-      setTimeout(() => completeExam(score, true), 0)
+      window.location.href = "/resource-apply"
     }
   }
 
