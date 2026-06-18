@@ -158,9 +158,9 @@ app.get("/api/points/ranking", auth, (req, res) => {
   })
   result.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points
-    if (a.firstPointsTime && b.firstPointsTime) return new Date(a.firstPointsTime).getTime() - new Date(b.firstPointsTime).getTime()
-    if (a.firstPointsTime) return -1
-    if (b.firstPointsTime) return 1
+    if (a.lastPointsTime && b.lastPointsTime) return new Date(a.lastPointsTime).getTime() - new Date(b.lastPointsTime).getTime()
+    if (a.lastPointsTime) return -1
+    if (b.lastPointsTime) return 1
     return 0
   })
   res.json(result)
@@ -346,9 +346,9 @@ app.get("/api/statistics/ranking", auth, (req, res) => {
   })
   result.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points
-    if (a.firstPointsTime && b.firstPointsTime) return new Date(a.firstPointsTime).getTime() - new Date(b.firstPointsTime).getTime()
-    if (a.firstPointsTime) return -1
-    if (b.firstPointsTime) return 1
+    if (a.lastPointsTime && b.lastPointsTime) return new Date(a.lastPointsTime).getTime() - new Date(b.lastPointsTime).getTime()
+    if (a.lastPointsTime) return -1
+    if (b.lastPointsTime) return 1
     return 0
   })
   res.json(result)
@@ -360,6 +360,77 @@ app.get("/api/statistics/summary", auth, (req, res) => {
   const totalPoints = db.prepare("SELECT COALESCE(SUM(amount),0) as total FROM points").get().total
   const avgPoints = bossCount > 0 ? (totalPoints / bossCount).toFixed(1) : "0"
   res.json({ totalBoss: bossCount, totalPoints, avgPoints })
+})
+
+// ═══════════════════════════════════════════════
+// NOTIFICATIONS — 通知系统
+// ═══════════════════════════════════════════════
+
+// 获取当前用户的通知
+app.get("/api/notifications", auth, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT 100").all(req.user.id)
+  res.json(rows)
+})
+
+// 全部标为已读
+app.post("/api/notifications/read-all", auth, (req, res) => {
+  const db = getDb()
+  db.prepare("UPDATE notifications SET read = 1 WHERE userId = ? AND read = 0").run(req.user.id)
+  res.json({ success: true })
+})
+
+// ═══════════════════════════════════════════════
+// POINTS IMPORT — 姚币批量导入
+// ═══════════════════════════════════════════════
+
+// 批量导入姚币
+app.post("/api/points/batch-import", auth, adminOnly, (req, res) => {
+  const { rows: importRows, fileName } = req.body
+  if (!importRows || !Array.isArray(importRows) || importRows.length === 0) {
+    return res.status(400).json({ error: "缺少导入数据" })
+  }
+  const db = getDb()
+  let matched = 0
+  let totalPoints = 0
+
+  const insertPoints = db.prepare("INSERT INTO points (userId, amount, reason, source) VALUES (?, ?, ?, 'batch_import')")
+  const insertNotif = db.prepare("INSERT INTO notifications (id, userId, type, title, message) VALUES (?, ?, 'points', ?, ?)")
+  const findUserByDept = db.prepare("SELECT id, name FROM users WHERE department LIKE ? AND name LIKE ?")
+
+  const importBatch = db.transaction((rows) => {
+    for (const row of rows) {
+      const name = row.name || row.BOSS姓名 || ''
+      const dept = row.department || row.部门 || ''
+      const points = parseInt(row.points || row.amount || row.姚币 || '0', 10)
+      if (!name || !dept || !points) continue
+
+      const user = findUserByDept.get(dept, name)
+      if (!user) continue
+
+      insertPoints.run(user.id, points, (row.reason || row.原因 || '批量导入').slice(0, 100))
+      matched++
+      totalPoints += points
+
+      const nid = `N-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      insertNotif.run(nid, user.id, `+${points} 姚币`, (row.reason || '批量导入').slice(0, 100))
+    }
+  })
+
+  importBatch(importRows)
+
+  const importId = `IMP-${Date.now()}`
+  db.prepare("INSERT INTO points_imports (id, fileName, totalRows, matchedRows, totalPoints, importedBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, datetime('now','localtime'))")
+    .run(importId, fileName || '', importRows.length, matched, totalPoints, req.user.name || req.user.username || '')
+
+  res.json({ success: true, matched, totalPoints, importId })
+})
+
+// 导入历史
+app.get("/api/points/import-history", auth, adminOnly, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM points_imports ORDER BY createdAt DESC LIMIT 50").all()
+  res.json(rows)
 })
 
 // ═══════════════════════════════════════════════

@@ -32,6 +32,13 @@ export default function Activation() {
 
   // ── Learning state ──
   const [studyCompleted, setStudyCompleted] = useState(false)
+
+  // 用户进入学习资料页 → 进度条自动前进到"学习资料"（注册步骤已完成）
+  useEffect(() => {
+    if (tutorial.isActive && tutorial.state.step === 0) {
+      tutorial.goTo("study")
+    }
+  }, [tutorial.isActive, tutorial.state.step, tutorial.goTo])
   const [adminSkip, setAdminSkip] = useState(() => {
     try { return localStorage.getItem(`boss-admin-skip-${userKey}`) === "true" } catch { return false }
   })

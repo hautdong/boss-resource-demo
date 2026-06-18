@@ -97,5 +97,25 @@ function initSchema() {
       date TEXT DEFAULT (datetime('now','localtime')),
       status TEXT DEFAULT '待审批'
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'info',
+      title TEXT NOT NULL,
+      message TEXT DEFAULT '',
+      read INTEGER DEFAULT 0,
+      createdAt TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS points_imports (
+      id TEXT PRIMARY KEY,
+      fileName TEXT DEFAULT '',
+      totalRows INTEGER DEFAULT 0,
+      matchedRows INTEGER DEFAULT 0,
+      totalPoints INTEGER DEFAULT 0,
+      importedBy TEXT DEFAULT '',
+      createdAt TEXT DEFAULT (datetime('now','localtime'))
+    );
   `)
 }
