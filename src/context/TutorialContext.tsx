@@ -111,11 +111,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const goTo = useCallback((stepId: string) => {
-    // 教程未启用 + 已激活用户 → 不启动教程
-    if (!state.enabled && (user?.activationStatus === "activated" || user?.activationStatus === "已激活")) return
     const idx = TUTORIAL_STEPS.findIndex(s => s.id === stepId)
     if (idx >= 0) setState(prev => ({ ...prev, step: idx }))
-  }, [state.enabled, user?.activationStatus])
+  }, [])
 
   const skip = useCallback(() => {
     setState({ enabled: false, step: 4 })

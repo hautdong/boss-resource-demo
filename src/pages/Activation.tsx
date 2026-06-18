@@ -34,18 +34,12 @@ export default function Activation() {
   // ── Learning state ──
   const [studyCompleted, setStudyCompleted] = useState(false)
 
-  // 用户进入学习资料页 → 进度条自动前进到"学习资料"（注册步骤已完成）
-  // 若之前测试导致 step 超前了（如 step=3），也拉回"学习资料"
+  // 学习阶段 → 进度条强制定位到"学习资料"
   useEffect(() => {
-    if (tutorial.isActive) {
-      if (tutorial.state.step === 0) {
-        tutorial.goTo("study")
-      } else if (tutorial.state.step > 1) {
-        // 如果用户还在学习页但进度条已经跳到后面了（比如之前测试残留），拉回"学习资料"
-        tutorial.goTo("study")
-      }
+    if (phase === "study" && tutorial.state.step !== 1) {
+      tutorial.goTo("study")
     }
-  }, [tutorial.isActive, tutorial.state.step, tutorial.goTo])
+  }, [phase, tutorial.state.step, tutorial.goTo])
   const [adminSkip, setAdminSkip] = useState(() => {
     try { return localStorage.getItem(`boss-admin-skip-${userKey}`) === "true" } catch { return false }
   })
