@@ -1,11 +1,11 @@
-import { Bell, Search, LogOut, User, Menu, Code, X, FileText } from "lucide-react"
+import { Bell, Search, LogOut, User, Menu, Code, X, FileText, CheckCircle2, Package } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { ThemeToggle } from "./ThemeToggle"
 import { useAuth } from "../context/AuthContext"
 import { useEditMode } from "../context/EditModeContext"
 import { getRoleShortLabel } from "../lib/roleConfig"
 import { useState, useRef, useEffect } from "react"
-import { loadNotifications, markAllRead, getUnreadCount } from "../lib/notifications"
+import { loadNotifications, markAllRead } from "../lib/notifications"
 import type { Notification } from "../lib/notifications"
 import { api } from "../lib/api"
 
@@ -18,20 +18,27 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
   const { editing, toggleEditing } = useEditMode()
   const navigate = useNavigate()
   const [notifOpen, setNotifOpen] = useState(false)
-  const [notifCount, setNotifCount] = useState(getUnreadCount())
-  const [notifs, setNotifs] = useState<Notification[]>(loadNotifications())
+  const [notifCount, setNotifCount] = useState(0)
+  const [notifs, setNotifs] = useState<Notification[]>([])
   const [pendingResources, setPendingResources] = useState(0)
   const notifRef = useRef<HTMLDivElement>(null)
   const isAdmin = user?.role === "super_admin" || user?.role === "admin"
 
-  // Refresh notifications every 3 seconds, + pending resources for admin
+  // Refresh notifications every 3 seconds, filtered by current user
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNotifs(loadNotifications())
-      setNotifCount(getUnreadCount())
-    }, 3000)
+    const refresh = () => {
+      const all = loadNotifications()
+      // Admin sees all notifications; BOSS users only see their own
+      const filtered = all.filter(
+        (n) => isAdmin || n.targetUser === user?.username || n.targetUser === user?.name
+      )
+      setNotifs(filtered)
+      setNotifCount(filtered.filter((n) => !n.read).length)
+    }
+    refresh()
+    const interval = setInterval(refresh, 3000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isAdmin, user?.username, user?.name])
 
   // Fetch pending resource count for admin
   useEffect(() => {
@@ -58,7 +65,7 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
 
   const handleMarkAllRead = () => {
     markAllRead()
-    setNotifs(loadNotifications())
+    setNotifs((prev) => prev.map((n) => ({ ...n, read: true })))
     setNotifCount(0)
   }
 
@@ -154,13 +161,29 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
                   notifs.slice(0, 20).map((n) => (
                     <div key={n.id} className={`px-4 py-3 border-b last:border-0 hover:bg-accent/50 transition-colors ${!n.read ? "bg-primary/5" : ""}`}>
                       <div className="flex items-start gap-2">
-                        <span className="text-sm">{n.title}</span>
-                        {!n.read && <span className="h-2 w-2 rounded-full bg-destructive shrink-0 mt-1.5" />}
+                        {n.type === "resource" ? (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 shrink-0 mt-0.5">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                        ) : n.type === "ban" ? (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 shrink-0 mt-0.5">
+                            <X className="h-3 w-3 text-red-600 dark:text-red-400" />
+                          </div>
+                        ) : n.type === "points" ? (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 shrink-0 mt-0.5">
+                            <Package className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                          </div>
+                        ) : null}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">{n.title}</span>
+                            {!n.read && <span className="h-2 w-2 rounded-full bg-destructive shrink-0" />}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{n.date}</p>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">{n.date}</p>
-                    </div>
-                  ))
+                    </div>))
                 )}
               </div>
             </div>

@@ -10,6 +10,7 @@ import { useAuth } from "../context/AuthContext"
 import { useTutorial } from "../context/TutorialContext"
 import { api } from "../lib/api"
 import { loadApplications, saveApplication, updateApplication, type ResourceApplication } from "../lib/resourceStorage"
+import { addNotification } from "../lib/notifications"
 
 // ─── Resource Types ───
 const RESOURCE_TYPES = [
@@ -311,11 +312,28 @@ function AdminResourceView() {
       payload.fileName = allocFileName
     }
 
+    // Find the application being allocated
+    const targetApp = apps.find((a) => a.id === allocId)
+
     updateApplication(allocId, {
       status: "allocated",
       allocatedInfo: JSON.stringify(payload),
       allocatedDate: new Date().toISOString(),
     })
+
+    // Send notification to the applicant
+    if (targetApp) {
+      const resourceName = getResourceName(targetApp.resourceType)
+      const allocDesc = allocInfo ? `（${allocInfo.slice(0, 50)}）` : ""
+      addNotification({
+        type: "resource",
+        title: "资源已分配",
+        message: `你的「${resourceName}」申请已审批通过${allocDesc}，请查看详情`,
+        targetUser: targetApp.userPhone || targetApp.userName,
+        targetUserName: targetApp.userName,
+        targetUserPhone: targetApp.userPhone,
+      })
+    }
 
     // Try API in background
     api.bossResources.allocate(allocId, JSON.stringify(payload)).catch(() => {})

@@ -113,6 +113,7 @@ html {
   background: linear-gradient(135deg, hsl(var(--primary) / 0.1), transparent 50%);
   opacity: 0;
   transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .premium-card:hover::before {

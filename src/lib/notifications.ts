@@ -1,11 +1,13 @@
 export interface Notification {
   id: string
-  type: "ban" | "unban" | "points"
+  type: "ban" | "unban" | "points" | "resource"
   title: string
   message: string
   date: string
   read: boolean
   targetUser: string
+  targetUserName?: string
+  targetUserPhone?: string
 }
 
 export function loadNotifications(): Notification[] {
