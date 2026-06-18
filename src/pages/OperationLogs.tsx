@@ -12,7 +12,7 @@ const logs = [
   { id: 3, user: "系统", action: "成本预警触发", target: "总预算剩余不足10%", ip: "-", time: "2025-06-09 13:45:00", type: "system" },
   { id: 4, user: "王五", action: "账号激活", target: "考试成绩达标，账号激活", ip: "192.168.1.102", time: "2025-06-09 11:20:33", type: "auth" },
   { id: 5, user: "超级管理员", action: "用户登录", target: "IP: 192.168.1.100", ip: "192.168.1.100", time: "2025-06-09 10:00:00", type: "auth" },
-  { id: 6, user: "赵六", action: "资源申请", target: "临时申请 - 打招呼数 3000条", ip: "192.168.1.103", time: "2025-06-09 09:45:22", type: "operation" },
+  { id: 6, user: "赵六", action: "资质申请", target: "临时申请 - 打招呼数 3000条", ip: "192.168.1.103", time: "2025-06-09 09:45:22", type: "operation" },
   { id: 7, user: "超级管理员", action: "数据导出", target: "6月BOSS排名报表.xlsx", ip: "192.168.1.100", time: "2025-06-09 09:30:15", type: "operation" },
   { id: 8, user: "李华", action: "成本台账订正", target: "华南事业部线索包费用修正", ip: "192.168.1.101", time: "2025-06-09 09:12:00", type: "operation" },
   { id: 9, user: "系统", action: "自动判卷", target: "郑十 - 考试成绩 85分 (通过)", ip: "-", time: "2025-06-09 08:50:30", type: "system" },
@@ -53,7 +53,7 @@ export default function OperationLogs() {
         <CardContent>
           <div className="space-y-2">
             {[
-              { msg: "有 2 条资源申请待审批（超过 24 小时未处理）", time: "2 小时前" },
+              { msg: "有 2 条资质申请待审批（超过 24 小时未处理）", time: "2 小时前" },
               { msg: "成本预警：总预算剩余 ¥115,000（23%），请合理规划", time: "3 小时前" },
               { msg: "郑十的账号激活考试已完成，请审核", time: "5 小时前" },
             ].map((item, i) => (

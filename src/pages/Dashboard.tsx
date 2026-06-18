@@ -109,7 +109,7 @@ export default function Dashboard() {
                 { action: "资源分配", user: "张明", target: "华东区 BOSS 账号", time: "2 分钟前", type: "success" },
                 { action: "账号激活", user: "李华", target: "考试成绩达标通过", time: "15 分钟前", type: "success" },
                 { action: "成本预警", user: "系统", target: "预算剩余不足 10%", time: "1 小时前", type: "warning" },
-                { action: "资源申请", user: "王五", target: "申请额外线索包 5000 条", time: "2 小时前", type: "pending" },
+                { action: "资质申请", user: "王五", target: "申请额外线索包 5000 条", time: "2 小时前", type: "pending" },
                 { action: "账号冻结", user: "赵六", target: "连续 30 天未登录", time: "3 小时前", type: "destructive" },
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3">

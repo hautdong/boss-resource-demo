@@ -25,7 +25,7 @@ function getResourceName(typeId: string): string {
 }
 
 // ═══════════════════════════════════════════════
-// BossResourceApply — BOSS 提交资源申请
+// BossResourceApply — BOSS 提交资质申请
 // ═══════════════════════════════════════════════
 function BossResourceApply() {
   const { user } = useAuth()
@@ -99,7 +99,7 @@ function BossResourceApply() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">提交资源申请</CardTitle>
+                <CardTitle className="text-base">提交资质申请</CardTitle>
                 <CardDescription>选择需要的BOSS资源，提交后由管理员审批分配</CardDescription>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-full px-3 py-1">
@@ -173,7 +173,7 @@ function BossResourceApply() {
                   <FileText className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">暂无申请记录</p>
-                <p className="text-xs text-muted-foreground mt-1">提交资源申请后，记录将显示在此处</p>
+                <p className="text-xs text-muted-foreground mt-1">提交资质申请后，记录将显示在此处</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -619,16 +619,16 @@ export default function ResourceApplication() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight gradient-text">资源申请</h1>
+        <h1 className="text-2xl font-bold tracking-tight gradient-text">资质申请</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {isBoss ? "选择需要的BOSS资源，提交申请等待管理员审批分配" : "管理所有资源申请，审批并分配资源"}
+          {isBoss ? "选择需要的BOSS资源，提交申请等待管理员审批分配" : "管理所有资质申请，审批并分配资源"}
         </p>
       </div>
       {isBoss ? <BossResourceApply /> : isAdmin ? <AdminResourceView /> : (
         <Card>
           <CardContent className="py-12 text-center">
             <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">您没有权限访问资源申请模块</p>
+            <p className="text-sm text-muted-foreground">您没有权限访问资质申请模块</p>
           </CardContent>
         </Card>
       )}

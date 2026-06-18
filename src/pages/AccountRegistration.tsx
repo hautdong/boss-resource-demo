@@ -156,7 +156,7 @@ export default function AccountRegistration() {
                   {
                     role: "成员BOSS",
                     badge: "成员" as const,
-                    desc: "资源申请、查看已分配资源、异议反馈",
+                    desc: "资质申请、查看已分配资源、异议反馈",
                     color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
                   },
                 ].map((item, i) => (

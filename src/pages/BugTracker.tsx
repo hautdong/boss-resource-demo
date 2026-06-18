@@ -16,7 +16,7 @@ interface Bug {
 const INITIAL_BUGS: Bug[] = [
   { id: "BUG-001", title: "账号激活考试页面在移动端显示异常", reporter: "赵六", severity: "中等", status: "待修复", date: "2025-06-08", module: "账号管理" },
   { id: "BUG-002", title: "成本台账导出 Excel 格式错乱", reporter: "李华", severity: "严重", status: "修复中", date: "2025-06-07", module: "资源管理" },
-  { id: "BUG-003", title: "资源申请数量输入负数未校验", reporter: "王五", severity: "轻微", status: "已修复", date: "2025-06-06", module: "资源管理" },
+  { id: "BUG-003", title: "资质申请数量输入负数未校验", reporter: "王五", severity: "轻微", status: "已修复", date: "2025-06-06", module: "资源管理" },
   { id: "BUG-004", title: "操作日志时间显示与服务器时间不一致", reporter: "超级管理员", severity: "中等", status: "已关闭", date: "2025-06-05", module: "日志管理" },
   { id: "BUG-005", title: "深色模式下部分文字对比度不足", reporter: "超级管理员", severity: "轻微", status: "待修复", date: "2025-06-04", module: "UI" },
   { id: "BUG-006", title: "资源分配后通知未及时推送", reporter: "张明", severity: "严重", status: "修复中", date: "2025-06-03", module: "通知" },

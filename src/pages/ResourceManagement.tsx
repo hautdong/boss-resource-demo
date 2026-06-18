@@ -472,7 +472,7 @@ function AdminOrderView() {
 }
 
 // ═══════════════════════════════════════════════
-// BossResourceApply — BOSS 提交资源申请
+// BossResourceApply — BOSS 提交资质申请
 // ═══════════════════════════════════════════════
 const RESOURCE_TYPES = [
   { id: "license", name: "营业执照", desc: "企业营业执照副本", icon: "📋" },
@@ -523,7 +523,7 @@ function BossResourceApply({ onSubmitted }: { onSubmitted?: () => void }) {
       {/* Apply Form */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">提交资源申请</CardTitle>
+          <CardTitle className="text-base">提交资质申请</CardTitle>
           <CardDescription>选择需要的BOSS资源，提交后由管理员审批分配</CardDescription>
         </CardHeader>
         <CardContent>

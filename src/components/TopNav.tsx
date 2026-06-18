@@ -167,8 +167,8 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
                     <div className="flex items-start gap-2">
                       <FileText className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
                       <div>
-                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">待审批资源申请</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">有 {pendingResources} 条资源申请等待审批</p>
+                        <span className="text-sm font-medium text-blue-700 dark:text-blue-400">待审批资质申请</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">有 {pendingResources} 条资质申请等待审批</p>
                       </div>
                     </div>
                   </div>

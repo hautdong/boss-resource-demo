@@ -59,7 +59,7 @@ export default function Login() {
           </h2>
 
           <p className="text-indigo-200 text-lg mb-12 leading-relaxed">
-            资源申请 · 智能审批 · 成本管控 · 数据洞察
+            资质申请 · 智能审批 · 成本管控 · 数据洞察
             <br />
             全流程数字化管理，让资源分配更高效
           </p>

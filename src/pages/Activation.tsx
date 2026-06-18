@@ -245,7 +245,7 @@ export default function Activation() {
     setShowPassDialog(true)
   }
 
-  // 确认通过 → 整页跳转到资源申请页（绕过路由守卫）
+  // 确认通过 → 整页跳转到资质申请页（绕过路由守卫）
   // 跳转后页面刷新，AuthContext 从服务器获取已激活的用户信息
   const confirmActivation = () => {
     if (!confirmActivationCalled.current) {
@@ -363,7 +363,7 @@ export default function Activation() {
             {passed ? (
               <div className="space-y-2 max-w-sm mx-auto">
                 <Button variant="primary" className="w-full" onClick={confirmActivation}>
-                  <CheckCircle2 className="h-5 w-5 mr-2" />申请BOSS资源
+                  <CheckCircle2 className="h-5 w-5 mr-2" />申请BOSS资质
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => { logout(); navigate("/login", { replace: true }) }}>
                   <LogOut className="h-4 w-4 mr-2" />返回登录
@@ -519,7 +519,7 @@ export default function Activation() {
                   <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">账号已成功激活！</span>
                 </div>
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  考试成绩 <strong>{score} 分</strong>，已达到通过线 {PASS_SCORE} 分，现在可以申请BOSS资源了！
+                  考试成绩 <strong>{score} 分</strong>，已达到通过线 {PASS_SCORE} 分，现在可以申请BOSS资质了！
                 </p>
               </div>
             </DialogDescription>
@@ -531,7 +531,7 @@ export default function Activation() {
               size="lg"
               onClick={confirmActivation}
             >
-              <CheckCircle2 className="h-4 w-4 mr-1" />去申请BOSS资源
+              <CheckCircle2 className="h-4 w-4 mr-1" />去申请BOSS资质
             </Button>
           </div>
         </DialogContent>
