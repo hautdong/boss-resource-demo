@@ -1,5 +1,8 @@
 import { useTutorial } from "../context/TutorialContext"
 import { useAuth } from "../context/AuthContext"
+import { Book, ClipboardList, Star, UserPlus, Trophy, ChevronRight } from "lucide-react"
+
+const STEP_ICONS = [Book, ClipboardList, Star, UserPlus, Trophy]
 
 const STEPS = [
   { prefix: "第一步", title: "学习资料" },
@@ -28,10 +31,11 @@ export default function TutorialGuide() {
       <div className="bg-white/95 dark:bg-gray-900/95 border-b border-indigo-100 dark:border-indigo-900/30">
         <div className="flex items-center justify-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-2.5 overflow-x-auto">
           {STEPS.map((step, i) => {
+            const Icon = STEP_ICONS[i]
             const isDone = i < currentStep
             const isCurrent = i === currentStep
             return (
-              <div key={i} className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div key={i} className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <div
                   className={`flex flex-col items-center justify-center px-2.5 sm:px-3 py-1.5 rounded-xl text-center transition-all duration-300 ${
                     isDone
@@ -41,6 +45,13 @@ export default function TutorialGuide() {
                       : "bg-gray-100 dark:bg-gray-800"
                   }`}
                 >
+                  <Icon className={`h-4 w-4 sm:h-5 sm:w-5 mb-0.5 ${
+                    isDone
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : isCurrent
+                      ? "text-indigo-600 dark:text-indigo-400"
+                      : "text-gray-400 dark:text-gray-500"
+                  }`} />
                   <span className={`text-[10px] sm:text-xs font-medium leading-tight ${
                     isDone
                       ? "text-emerald-600 dark:text-emerald-400"
@@ -61,11 +72,9 @@ export default function TutorialGuide() {
                   </span>
                 </div>
                 {i < STEPS.length - 1 && (
-                  <div
-                    className={`h-8 w-px sm:w-0.5 transition-all duration-300 shrink-0 ${
-                      i < currentStep ? "bg-emerald-300" : "bg-gray-300 dark:bg-gray-600"
-                    }`}
-                  />
+                  <ChevronRight className={`h-4 w-4 sm:h-5 sm:w-5 transition-all duration-300 shrink-0 ${
+                    i < currentStep ? "text-emerald-400" : "text-gray-300 dark:text-gray-600"
+                  }`} />
                 )}
               </div>
             )
