@@ -134,22 +134,7 @@ app.put("/api/admin/users/:userId", auth, adminOnly, (req, res) => {
 // POINTS
 // ═══════════════════════════════════════════════
 
-app.get("/api/points/:userId", auth, (req, res) => {
-  const db = getDb()
-  const rows = db.prepare("SELECT amount, reason, createdAt FROM points WHERE userId = ? ORDER BY id").all(req.params.userId)
-  const total = rows.reduce((s, r) => s + r.amount, 0)
-  res.json({ total, records: rows, firstPointsTime: rows.length > 0 ? rows[0].createdAt : null })
-})
-
-app.post("/api/points", auth, (req, res) => {
-  const { userId, amount, reason, source } = req.body
-  if (!userId || !amount) return res.status(400).json({ error: "缺少参数" })
-  const db = getDb()
-  db.prepare("INSERT INTO points (userId, amount, reason, source) VALUES (?, ?, ?, ?)").run(userId, amount, reason || "", source || "")
-  const rows = db.prepare("SELECT amount FROM points WHERE userId = ?").all(userId)
-  res.json({ total: rows.reduce((s, r) => s + r.amount, 0) })
-})
-
+// ⚠️ 静态路由排在参数化路由之前，避免 /points/ranking 被 :userId 截获
 app.get("/api/points/ranking", auth, (req, res) => {
   const db = getDb()
   const users = db.prepare("SELECT id, name, username, department, role, roleLabel FROM users WHERE role = 'boss'").all()
@@ -166,6 +151,22 @@ app.get("/api/points/ranking", auth, (req, res) => {
     return 0
   })
   res.json(result)
+})
+
+app.get("/api/points/:userId", auth, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT amount, reason, createdAt FROM points WHERE userId = ? ORDER BY id").all(req.params.userId)
+  const total = rows.reduce((s, r) => s + r.amount, 0)
+  res.json({ total, records: rows, firstPointsTime: rows.length > 0 ? rows[0].createdAt : null })
+})
+
+app.post("/api/points", auth, (req, res) => {
+  const { userId, amount, reason, source } = req.body
+  if (!userId || !amount) return res.status(400).json({ error: "缺少参数" })
+  const db = getDb()
+  db.prepare("INSERT INTO points (userId, amount, reason, source) VALUES (?, ?, ?, ?)").run(userId, amount, reason || "", source || "")
+  const rows = db.prepare("SELECT amount FROM points WHERE userId = ?").all(userId)
+  res.json({ total: rows.reduce((s, r) => s + r.amount, 0) })
 })
 
 // ═══════════════════════════════════════════════
