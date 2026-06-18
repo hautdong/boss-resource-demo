@@ -224,14 +224,12 @@ export default function Activation() {
       setSubmitted(false)
       setPhase("result")
     } else {
-      // 考试通过：先保存到服务器，但不更新本地 user 状态
-      // 否则 ActivationGuard 会立即跳转到工作台，弹窗来不及渲染
+      // 考试通过：只弹通过弹窗，不显示成绩结果页
       try {
         await authApi.updateActivation({ status: "activated", examScore: totalScore, examPassed: true })
       } catch {}
       tutorial.goTo("apply")
       setSubmitted(false)
-      setPhase("result")
       setShowPassDialog(true)
     }
   }
@@ -244,7 +242,6 @@ export default function Activation() {
       await authApi.updateActivation({ status: "activated", examScore: 100, examPassed: true })
     } catch {}
     setSubmitted(false)
-    setPhase("result")
     setShowPassDialog(true)
   }
 
