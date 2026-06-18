@@ -239,22 +239,22 @@ function BossResourceApply() {
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg animate-scale-in">
               <Trophy className="h-7 w-7 text-white" />
             </div>
-            <DialogTitle className="text-center text-xl animate-fade-in">🎉 申请已提交！</DialogTitle>
+            <DialogTitle className="text-center text-xl animate-fade-in">🎉 申请已提交，恭喜您通过新手教程！</DialogTitle>
             <DialogDescription className="text-center pt-2">
               <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200 dark:border-emerald-800 p-4 animate-scale-in">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 animate-pulse" />
-                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">申请已提交给管理员</span>
+                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">新手教程已完成！</span>
                 </div>
                 <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  请耐心等待管理员审批分配，审批完成后可在申请记录中查看结果。
+                  申请已提交给管理员，请耐心等待审批分配。
                 </p>
               </div>
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 space-y-2">
             <Button variant="primary" className="w-full" size="lg" onClick={handleFinishTutorial}>
-              <CheckCircle2 className="h-4 w-4 mr-1" />知道了
+              <CheckCircle2 className="h-4 w-4 mr-1" />确定
             </Button>
           </div>
         </DialogContent>

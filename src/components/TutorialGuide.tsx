@@ -25,16 +25,16 @@ export default function TutorialGuide() {
           style={{ width: `${progress}%` }}
         />
       </div>
-      {/* 步骤标签行 */}
+      {/* 步骤标签行 — 手机和桌面显示同样的5个标签，通过响应式字号间距自动适配 */}
       <div className="bg-white/95 dark:bg-gray-900/95 border-b border-indigo-100 dark:border-indigo-900/30">
-        <div className="flex items-center justify-center gap-1.5 px-4 py-1.5">
+        <div className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-1 sm:py-1.5 overflow-x-auto">
           {STEP_LABELS.map((label, i) => {
             const isDone = i < currentStep
             const isCurrent = i === currentStep
             return (
-              <div key={i} className="flex items-center gap-1">
+              <div key={i} className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium transition-all duration-300 ${
+                  className={`inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium transition-all duration-300 whitespace-nowrap ${
                     isDone
                       ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                       : isCurrent
@@ -46,7 +46,7 @@ export default function TutorialGuide() {
                 </span>
                 {i < STEP_LABELS.length - 1 && (
                   <div
-                    className={`h-px w-3 transition-all duration-300 ${
+                    className={`h-px w-1 sm:w-2.5 transition-all duration-300 shrink-0 ${
                       i < currentStep ? "bg-emerald-300" : "bg-gray-300 dark:bg-gray-600"
                     }`}
                   />

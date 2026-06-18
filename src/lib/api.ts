@@ -113,6 +113,10 @@ export const api = {
       request(`/api/boss-resources/${id}/allocate`, { method: "PUT", body: JSON.stringify({ allocatedInfo }) }),
     pendingCount: () => request("/api/boss-resources/pending-count"),
   },
+  notifications: {
+    list: () => request("/api/notifications"),
+    readAll: () => request("/api/notifications/read-all", { method: "POST" }),
+  },
 }
 
 // ── 兼容旧版导出 ──

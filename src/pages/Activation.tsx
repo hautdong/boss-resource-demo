@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext"
 import { useTutorial } from "../context/TutorialContext"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
 import {
   BookOpen, GraduationCap, CheckCircle2, XCircle,
   AlertCircle, Clock, Trophy, Loader2,
@@ -193,6 +194,8 @@ export default function Activation() {
     })
   }
 
+  const [showPassDialog, setShowPassDialog] = useState(false)
+
   const handleSubmitExam = async () => {
     let totalScore = 0
     for (const q of examQuestions) {
@@ -210,14 +213,15 @@ export default function Activation() {
       localStorage.setItem(cooldownStorageKey, String(now))
       setCooldownLeft(Math.floor(RETRY_COOLDOWN / 1000))
       await completeExam(totalScore, false)
+      setSubmitted(false)
+      setPhase("result")
     } else {
       await completeExam(totalScore, true)
       tutorial.goTo("apply")
-      navigate("/resource-apply", { replace: true })
-      return
+      setSubmitted(false)
+      setPhase("result")
+      setShowPassDialog(true)
     }
-    setSubmitted(false)
-    setPhase("result")
   }
 
   const handleSkipExam = async () => {
@@ -226,7 +230,8 @@ export default function Activation() {
     tutorial.goTo("apply")
     await completeExam(100, true)
     setSubmitted(false)
-    navigate("/resource-apply", { replace: true })
+    setPhase("result")
+    setShowPassDialog(true)
   }
 
   const formatTime = (s: number) =>
@@ -253,6 +258,7 @@ export default function Activation() {
     })
 
     return (
+      <>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-6 px-4">
         <div className="max-w-2xl mx-auto animate-scale-in">
           {/* ── Score Card ── */}
@@ -334,8 +340,8 @@ export default function Activation() {
             {/* Actions */}
             {passed ? (
               <div className="space-y-2 max-w-sm mx-auto">
-                <Button variant="primary" className="w-full" onClick={() => navigate("/", { replace: true })}>
-                  <CheckCircle2 className="h-5 w-5 mr-2" />进入工作台
+                <Button variant="primary" className="w-full" onClick={() => navigate("/resource-apply", { replace: true })}>
+                  <CheckCircle2 className="h-5 w-5 mr-2" />申请BOSS资源
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => { logout(); navigate("/login", { replace: true }) }}>
                   <LogOut className="h-4 w-4 mr-2" />返回登录
@@ -475,6 +481,40 @@ export default function Activation() {
           )}
         </div>
       </div>
+
+      {/* 考试通过弹窗 */}
+      <Dialog open={showPassDialog} onOpenChange={setShowPassDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg animate-scale-in">
+              <Trophy className="h-7 w-7 text-white" />
+            </div>
+            <DialogTitle className="text-center text-xl animate-fade-in">🎉 恭喜您成功激活账号！</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200 dark:border-emerald-800 p-4 animate-scale-in">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 animate-pulse" />
+                  <span className="text-base font-bold text-emerald-700 dark:text-emerald-400">账号已成功激活！</span>
+                </div>
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  考试成绩 <strong>{score} 分</strong>，已达到通过线 {PASS_SCORE} 分，现在可以申请BOSS资源了！
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <Button
+              variant="primary"
+              className="w-full"
+              size="lg"
+              onClick={() => navigate("/resource-apply", { replace: true })}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />去申请BOSS资源
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
     )
   }
 
@@ -485,19 +525,19 @@ export default function Activation() {
     return (
       <div className="h-screen flex flex-col bg-background overflow-hidden">
         <header className="shrink-0 border-b bg-background/95 backdrop-blur-xl z-20">
-          <div className="flex items-center justify-between px-4 py-2">
-            <div className="flex items-center gap-3">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 sm:py-2">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-lg overflow-hidden shrink-0">
                 <img src="/logo-yaosiji.png" alt="姚司机" className="h-full w-full object-cover" />
               </div>
-              <span className="font-semibold text-sm">
+              <span className="font-semibold text-xs sm:text-sm truncate">
                 学习资料
               </span>
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-[10px] sm:text-xs hidden sm:inline-flex">
                 {user?.name} ({user?.roleLabel})
               </Badge>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <button
                 onClick={() => setAdminSkip((prev) => {
                   if (!prev) {
@@ -507,22 +547,22 @@ export default function Activation() {
                   }
                   return !prev
                 })}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                className={`flex items-center gap-1 text-[10px] sm:text-xs px-2 sm:px-2.5 py-1 rounded-full border transition-colors ${
                   adminSkip
                     ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700"
                     : "text-muted-foreground hover:text-foreground border-transparent hover:border-border"
                 }`}
                 title={adminSkip ? "关闭跳过模式" : "开启跳过模式"}
               >
-                ⚡ {adminSkip ? "跳过中" : "跳过"}
+                ⚡ <span className="sm:inline">{adminSkip ? "跳过中" : "跳过"}</span>
               </button>
               <button
                 onClick={() => { logout(); navigate("/login", { replace: true }) }}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground hover:text-foreground transition-colors"
                 title="退出并返回登录"
               >
-                <LogOut className="h-3.5 w-3.5" />
-                退出
+                <LogOut className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden xs:inline sm:inline">退出</span>
               </button>
             </div>
           </div>
@@ -530,7 +570,7 @@ export default function Activation() {
 
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden" id="study-content-wrapper">
           {/* ━━ LEFT: Forced Reader ━━ */}
-          <div className="flex-1 lg:flex-[2] overflow-y-auto p-4 lg:p-6">
+          <div className="flex-1 lg:flex-[2] overflow-y-auto p-3 sm:p-4 lg:p-6">
             <ForcedReader
               adminSkip={adminSkip}
               userId={userKey}
@@ -539,61 +579,61 @@ export default function Activation() {
           </div>
 
           {/* ━━ RIGHT: Exam Prep ━━ */}
-          <div className="flex-1 flex flex-col overflow-hidden border-l bg-muted/20">
-            <div className="flex-1 flex items-center justify-center p-6">
+          <div className="flex-1 flex flex-col overflow-hidden lg:border-l bg-muted/20">
+            <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
               <div className="w-full max-w-md text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-6">
-                  <GraduationCap className="h-8 w-8 text-primary" />
+                <div className="mx-auto flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary/10 mb-4 sm:mb-6">
+                  <GraduationCap className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
                 </div>
 
-                <h2 className="text-xl font-bold mb-2">
+                <h2 className="text-base sm:text-xl font-bold mb-1 sm:mb-2">
                   {studyCompleted ? "✅ 学习完成" : "📖 正在学习中"}
                 </h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
                   {studyCompleted
                     ? "你已完成所有学习资料，可以开始考试了。"
                     : "请按顺序完成所有资料的阅读，完成后即可解锁考试。"}
                 </p>
 
                 {/* 考试规则提示 */}
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4 mb-4 text-left">
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 sm:p-4 mb-3 sm:mb-4 text-left">
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-semibold text-amber-700 dark:text-amber-300 mb-1">⚠️ 考试须知</p>
-                      <p className="text-amber-600 dark:text-amber-400">
+                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs sm:text-sm font-semibold text-amber-700 dark:text-amber-300 mb-0.5 sm:mb-1">⚠️ 考试须知</p>
+                      <p className="text-[11px] sm:text-sm text-amber-600 dark:text-amber-400">
                         若考试不通过，再次考试需间隔 <strong>1 小时</strong>，且题目会刷新，请认真学习资料，仔细作答！
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-muted/50 p-4 mb-6 text-sm space-y-2 text-left">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">题目数量</span>
-                    <span className="font-semibold">{EXAM_QUESTION_COUNT} 题（随机抽选）</span>
+                <div className="rounded-xl bg-muted/50 p-3 sm:p-4 mb-4 sm:mb-6 text-[11px] sm:text-sm space-y-1.5 sm:space-y-2 text-left">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">题目数量</span>
+                    <span className="font-semibold text-right">{EXAM_QUESTION_COUNT} 题（随机抽选）</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">题型</span>
-                    <span className="font-semibold">单选 + 多选 + 判断</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">题型</span>
+                    <span className="font-semibold text-right">单选 + 多选 + 判断</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">总分</span>
-                    <span className="font-semibold">100 分</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">总分</span>
+                    <span className="font-semibold text-right">100 分</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">通过线</span>
-                    <span className="font-semibold text-emerald-600">80 分</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">通过线</span>
+                    <span className="font-semibold text-emerald-600 text-right">80 分</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">考试模式</span>
-                    <span className="font-semibold text-amber-600">⏱ 闭卷 · 限时 20 分钟</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground shrink-0">考试模式</span>
+                    <span className="font-semibold text-amber-600 text-right">⏱ 闭卷 · 限时 20 分钟</span>
                   </div>
                 </div>
 
                 {!studyCompleted && (
-                  <div className="flex items-center gap-2 justify-center text-amber-600 dark:text-amber-400 text-sm mb-4">
-                    <AlertCircle className="h-4 w-4" />
+                  <div className="flex items-center gap-2 justify-center text-amber-600 dark:text-amber-400 text-xs sm:text-sm mb-3 sm:mb-4">
+                    <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     请先完成所有资料的学习
                   </div>
                 )}
@@ -602,31 +642,31 @@ export default function Activation() {
                   id="start-exam-btn"
                   variant="primary"
                   size="lg"
-                  className="w-full"
+                  className="w-full text-xs sm:text-sm"
                   disabled={!studyCompleted || cooldownLeft > 0}
                   onClick={startExam}
                 >
                   {cooldownLeft > 0 ? (
-                    <><Clock className="h-5 w-5 mr-2 animate-pulse" />
+                    <><Clock className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2 animate-pulse" />
                     还需等待 {Math.floor(cooldownLeft / 60)}:{(cooldownLeft % 60).toString().padStart(2, "0")}</>
                   ) : studyCompleted ? (
-                    <><GraduationCap className="h-5 w-5 mr-2" />开始考试</>
+                    <><GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />开始考试</>
                   ) : (
-                    <><BookOpen className="h-5 w-5 mr-2" />请先完成资料学习</>
+                    <><BookOpen className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />请先完成资料学习</>
                   )}
                 </Button>
 
                 {cooldownLeft > 0 && (
-                  <div className="flex items-start gap-2 mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-left">
-                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                  <div className="flex items-start gap-2 mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2.5 sm:p-3 text-left">
+                    <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] sm:text-sm text-amber-700 dark:text-amber-300">
                       上次考试未通过，需等待 1 小时后才能再次参加。请利用这段时间认真复习资料。
                     </p>
                   </div>
                 )}
 
                 {studyCompleted && (
-                  <p className="text-xs text-muted-foreground mt-3">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 sm:mt-3">
                     考试开始后，学习资料将不可查看（闭卷）
                   </p>
                 )}

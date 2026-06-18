@@ -26,10 +26,30 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
 
   // Refresh notifications every 3 seconds, filtered by current user
   useEffect(() => {
-    const refresh = () => {
+    const refresh = async () => {
       const all = loadNotifications()
-      // Admin sees all notifications; BOSS users only see their own
-      const filtered = all.filter(
+      
+      // Also fetch from backend API
+      let backendNotifs: Notification[] = []
+      try {
+        const data = await api.notifications.list()
+        if (Array.isArray(data)) {
+          backendNotifs = data.map((n: any) => ({
+            id: n.id,
+            type: "points" as const,
+            title: n.title,
+            message: n.message,
+            date: n.createdAt ? new Date(n.createdAt+"Z").toLocaleDateString("zh-CN") : "-",
+            read: n.read,
+            targetUser: user?.username || "",
+            targetUserName: user?.name,
+          }))
+        }
+      } catch {}
+      
+      // Merge: backend takes priority, then localStorage
+      const merged = [...backendNotifs, ...all.filter(a => !backendNotifs.find(b => b.id === a.id))]
+      const filtered = merged.filter(
         (n) => isAdmin || n.targetUser === user?.username || n.targetUser === user?.name
       )
       setNotifs(filtered)
@@ -65,6 +85,7 @@ export function TopNav({ onMobileMenuToggle }: TopNavProps) {
 
   const handleMarkAllRead = () => {
     markAllRead()
+    api.notifications.readAll().catch(() => {})
     setNotifs((prev) => prev.map((n) => ({ ...n, read: true })))
     setNotifCount(0)
   }

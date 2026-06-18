@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
 import { Navigate, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import { useTutorial } from "../context/TutorialContext"
 import { Sidebar } from "./Sidebar"
 import { TopNav } from "./TopNav"
 import { cn } from "../lib/utils"
@@ -20,11 +21,15 @@ const ROUTE_PERMISSIONS: Record<string, string> = {
 
 export function ProtectedLayout() {
   const { isAuthenticated, isLoading, user } = useAuth()
+  const tutorial = useTutorial()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
+
+  // BOSS 用户教程期间隐藏侧栏，教程结束后才显示
+  const hideSidebar = user?.role === "boss" && tutorial.isActive
 
   if (isLoading) {
     return (
@@ -51,14 +56,16 @@ export function ProtectedLayout() {
 
   return (
     <div className="min-h-screen bg-background relative">
-      <Sidebar
-        collapsed={collapsed}
-        onToggleCollapse={() => setCollapsed(!collapsed)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-        userRole={user?.role}
-      />
-      <div className={cn("transition-all duration-300 lg:pl-60", collapsed && "lg:pl-16")}>
+      {!hideSidebar && (
+        <Sidebar
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+          mobileOpen={mobileOpen}
+          onMobileClose={() => setMobileOpen(false)}
+          userRole={user?.role}
+        />
+      )}
+      <div className={cn("transition-all duration-300", !hideSidebar && "lg:pl-60", collapsed && !hideSidebar && "lg:pl-16")}>
         <TutorialGuide />
         <TopNav onMobileMenuToggle={() => setMobileOpen(true)} />
         <main className="p-3 sm:p-4 md:p-6 animate-fade-in responsive-container">

@@ -194,14 +194,14 @@ export default function ForcedReader({ adminSkip, userId, onAllComplete }: Force
   return (
     <div className="relative">
       {/* ─── 顶部标签切换 ─── */}
-      <div className="bg-muted/50 rounded-xl p-3 mb-4">
+      <div className="bg-muted/50 rounded-xl p-2 sm:p-3 mb-3 sm:mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">{fileMeta?.title}</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs sm:text-sm font-medium truncate mr-2">{fileMeta?.title}</span>
+          <span className="text-[10px] sm:text-xs text-muted-foreground shrink-0">
             {currentPage}/{fileMeta?.totalPages || 0} 页
           </span>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
           {files.map((f) => {
             const unlocked = isFileUnlocked(f.id)
             const isActive = f.id === currentFile
@@ -211,7 +211,7 @@ export default function ForcedReader({ adminSkip, userId, onAllComplete }: Force
                 key={f.id}
                 onClick={() => switchFile(f.id)}
                 disabled={!unlocked}
-                className={`flex-1 text-xs py-2 px-2 rounded-lg border transition-all
+                className={`text-[10px] sm:text-xs py-1.5 sm:py-2 px-1 sm:px-2 rounded-lg border transition-all min-w-0
                   ${isActive
                     ? "border-primary bg-primary/10 text-primary font-semibold"
                     : isDone
@@ -221,8 +221,8 @@ export default function ForcedReader({ adminSkip, userId, onAllComplete }: Force
                     : "border-border bg-muted/30 text-muted-foreground cursor-not-allowed"
                   }`}
               >
-                <div className="flex items-center justify-center gap-1">
-                  {isDone ? <CheckCircle2 className="h-3 w-3 text-green-500" /> : !unlocked ? <Lock className="h-3 w-3" /> : null}
+                <div className="flex items-center justify-center gap-0.5 sm:gap-1">
+                  {isDone ? <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-500 shrink-0" /> : !unlocked ? <Lock className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" /> : null}
                   <span className="truncate">{f.title}</span>
                 </div>
               </button>
@@ -235,35 +235,37 @@ export default function ForcedReader({ adminSkip, userId, onAllComplete }: Force
       <div className="bg-white dark:bg-gray-900 rounded-xl border overflow-hidden">
         <iframe
           src={`${pdfUrls[currentFile]}#page=${currentPage}`}
-          className="w-full h-[60vh] border-0"
+          className="w-full h-[50vh] sm:h-[60vh] border-0"
           title="PDF Viewer"
         />
       </div>
 
       {/* ─── 底部控制栏 ─── */}
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">
+      <div className="flex items-center justify-between mt-3 sm:mt-4">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <span className="text-[11px] sm:text-sm text-muted-foreground shrink-0">
             第 {currentPage} / {fileMeta?.totalPages || 0} 页
           </span>
           {!canTurnPage && (
-            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-              <EyeOff className="h-3 w-3" />
+            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+              <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
               还需 {pageRemaining}s
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => goToPage(-1)} disabled={currentPage <= 1}>
-            <ChevronLeft className="h-4 w-4" /> 上一页
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Button variant="outline" size="sm" onClick={() => goToPage(-1)} disabled={currentPage <= 1}
+            className="text-[10px] sm:text-xs h-7 sm:h-9 px-1.5 sm:px-3">
+            <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" /> <span className="hidden sm:inline">上一页</span>
           </Button>
           {isLastPage ? (
-            <Button size="sm" onClick={markFileComplete} className="bg-green-600 hover:bg-green-700 text-white">
-              <CheckCircle2 className="h-4 w-4 mr-1" /> 完成本资料
+            <Button size="sm" onClick={markFileComplete} className="bg-green-600 hover:bg-green-700 text-white text-[10px] sm:text-xs h-7 sm:h-9 px-2 sm:px-3">
+              <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" /> <span className="text-[10px] sm:text-xs">完成</span>
             </Button>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => goToPage(1)} disabled={!canTurnPage}>
-              下一页 <ChevronRight className="h-4 w-4 ml-1" />
+            <Button variant="outline" size="sm" onClick={() => goToPage(1)} disabled={!canTurnPage}
+              className="text-[10px] sm:text-xs h-7 sm:h-9 px-1.5 sm:px-3">
+              <span className="hidden sm:inline">下一页</span> <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4 sm:ml-1" />
             </Button>
           )}
         </div>
