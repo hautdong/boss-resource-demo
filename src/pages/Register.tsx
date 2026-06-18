@@ -6,7 +6,8 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Select } from "../components/ui/select"
 import { Badge } from "../components/ui/badge"
-import { Shield, ArrowLeft, Loader2, Phone, UserRound, Building2, KeyRound, Eye, EyeOff } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
+import { Shield, ArrowLeft, Loader2, Phone, UserRound, Building2, KeyRound, Eye, EyeOff, GraduationCap } from "lucide-react"
 
 const departmentOptions = [
   { value: "", label: "请选择所在部门" },
@@ -31,6 +32,7 @@ export default function Register() {
   const [department, setDepartment] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
 
@@ -57,7 +59,7 @@ export default function Register() {
     try {
       const result = await register({ name, username: phone, phone, password, department })
       if (result.success) {
-        navigate("/activation", { replace: true })
+        setShowRegisterDialog(true)
       } else {
         setError(result.error || "注册失败")
       }
@@ -232,6 +234,35 @@ export default function Register() {
           </p>
         </div>
       </div>
+
+      {/* 注册成功弹窗 */}
+      <Dialog open={showRegisterDialog} onOpenChange={setShowRegisterDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg animate-scale-in">
+              <GraduationCap className="h-7 w-7 text-white" />
+            </div>
+            <DialogTitle className="text-center text-xl animate-fade-in">🎉 注册成功</DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200 dark:border-emerald-800 p-4 animate-scale-in">
+                <p className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
+                  注册成功，现在可以进入新手教程了！
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <Button
+              variant="primary"
+              className="w-full"
+              size="lg"
+              onClick={() => navigate("/activation", { replace: true })}
+            >
+              <GraduationCap className="h-4 w-4 mr-1" />去学习
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
