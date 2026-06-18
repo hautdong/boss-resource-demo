@@ -58,6 +58,9 @@ export const api = {
     add: (userId: string, amount: number, reason = "", source = "") =>
       request("/api/points", { method: "POST", body: JSON.stringify({ userId, amount, reason, source }) }),
     ranking: () => request("/api/points/ranking"),
+    batchImport: (items: any[], fileName: string) =>
+      request("/api/points/batch-import", { method: "POST", body: JSON.stringify({ items, fileName }) }),
+    importHistory: () => request("/api/points/import-history"),
   },
 
   study: {
