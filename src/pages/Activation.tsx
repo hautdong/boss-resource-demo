@@ -34,9 +34,10 @@ export default function Activation() {
   // ── Learning state ──
   const [studyCompleted, setStudyCompleted] = useState(false)
 
-  // 学习阶段 → 进度条强制定位到"学习资料"
+  // 学习阶段 → 如果还在学习页但 step 还没到学习（如 step===0），推进到学习
+  // 不改动 step > 0 的情况，避免拦截跳过等主动操作
   useEffect(() => {
-    if (phase === "study" && tutorial.state.step !== 0) {
+    if (phase === "study" && tutorial.state.step === 0) {
       tutorial.goTo("study")
     }
   }, [phase, tutorial.state.step, tutorial.goTo])
