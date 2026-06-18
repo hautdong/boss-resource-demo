@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import { useAuth } from "./AuthContext"
+import { api } from "../lib/api"
 
 // ─── 教程步骤 ───
 export const TUTORIAL_STEPS = [
@@ -48,26 +49,36 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const userId = user?.id || ""
   const [state, setState] = useState<TutorialState>(() => load(userId))
 
-  // 用户切换时重新加载对应用户的教程状态，同时清理旧全局key
+  // 从云端加载教程进度，覆盖本地缓存
   useEffect(() => {
     if (!userId) return
-    // 清理旧版全局 key
-    const old = localStorage.getItem(KEY_PREFIX)
-    if (old) {
-      try {
-        const parsed = JSON.parse(old)
-        if (parsed.step >= 5) localStorage.removeItem(KEY_PREFIX)
-      } catch { localStorage.removeItem(KEY_PREFIX) }
-    }
-    // 加载当前用户的教程状态
+    api.tutorial.get(userId).then(data => {
+      if (data && typeof data.step === 'number') {
+        const serverState: TutorialState = { step: data.step, enabled: !!data.enabled }
+        // 仅当服务端有值时才覆盖本地（本地可能还没初始化）
+        const key = getUserKey(userId)
+        const raw = localStorage.getItem(key)
+        if (!raw || (data.step !== 0 || data.enabled)) {
+          setState(serverState)
+          localStorage.setItem(key, JSON.stringify(serverState))
+        }
+      }
+    }).catch(() => {})
+  }, [userId])
+
+  // 用户切换时重新加载对应用户的教程状态
+  useEffect(() => {
+    if (!userId) return
     setState(load(userId))
   }, [userId])
 
-  // 持久化（用户隔离）
+  // 持久化到本地 + 同步到云端
   useEffect(() => {
     if (!userId) return
     const key = getUserKey(userId)
     localStorage.setItem(key, JSON.stringify(state))
+    // 异步同步到云端（静默失败）
+    api.tutorial.save(userId, { step: state.step, enabled: state.enabled }).catch(() => {})
   }, [state, userId])
 
   // BOSS用户登录后自动开启教程（仅一次，且仅未激活用户）

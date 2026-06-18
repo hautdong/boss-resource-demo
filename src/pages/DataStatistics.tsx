@@ -125,10 +125,7 @@ function PointsImport({ onImported }: { onImported: () => void }) {
       if (parsed.length === 0) { setErr("未能解析出有效数据"); return }
       // 匹配用户
       let users: any[] = []
-      try { users = await api.admin.users() } catch {
-        const raw = localStorage.getItem("boss-resource-users")
-        if (raw) users = Object.values(JSON.parse(raw)).map((e: any) => e.user || e)
-      }
+      try { users = await api.admin.users() } catch { users = [] }
       for (const p of parsed) {
         const m = users.find((u: any) => u.name === p.name && u.department === p.department && u.role === "boss")
         if (m) { p.matched = true; p.userId = m.id }
@@ -262,20 +259,7 @@ export default function DataStatistics() {
       const data = await api.points.ranking()
       setUsers(data || [])
     } catch {
-      try {
-        const raw = localStorage.getItem("boss-resource-users")
-        if (!raw) { setUsers([]); return }
-        const all = JSON.parse(raw)
-        const list: RankUser[] = Object.values(all).map((e: any) => {
-          const u = e.user || e
-          if (u.role !== "boss") return null
-          const key = `${u.name||""}-${u.phone||u.username||""}`
-          const pts = (() => { try { return Number(localStorage.getItem(`boss-points-${key}`))||0 } catch { return 0 } })()
-          const ts = (() => { try { return localStorage.getItem(`boss-points-last-time-${key}`)||"" } catch { return "" } })()
-          return { id: u.id, name: u.name||"", username: u.username||"", phone: u.phone||"", department: u.department||"未分配", roleLabel: u.roleLabel||"成员BOSS", points: pts, lastPointsTime: ts }
-        }).filter(Boolean) as RankUser[]
-        setUsers(list)
-      } catch { setUsers([]) }
+      setUsers([])
     } finally { setLoading(false) }
   }, [])
 

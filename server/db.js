@@ -117,5 +117,46 @@ function initSchema() {
       importedBy TEXT DEFAULT '',
       createdAt TEXT DEFAULT (datetime('now','localtime'))
     );
+
+    CREATE TABLE IF NOT EXISTS tutorial_progress (
+      userId TEXT PRIMARY KEY,
+      step INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 0,
+      updatedAt TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      status TEXT DEFAULT '待修复',
+      priority TEXT DEFAULT '中',
+      reporter TEXT DEFAULT '',
+      createdAt TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS exchange_orders (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      userName TEXT DEFAULT '',
+      productId TEXT NOT NULL,
+      productName TEXT DEFAULT '',
+      quantity INTEGER DEFAULT 1,
+      pointsCost INTEGER DEFAULT 0,
+      shippedAccount TEXT DEFAULT NULL,
+      status TEXT DEFAULT 'pending',
+      createdAt TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS resource_applications (
+      id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
+      userName TEXT DEFAULT '',
+      resourceType TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      contact TEXT DEFAULT '',
+      status TEXT DEFAULT 'pending',
+      createdAt TEXT DEFAULT (datetime('now','localtime'))
+    );
   `)
 }

@@ -437,6 +437,115 @@ app.post("/api/points/batch-import", auth, adminOnly, (req, res) => {
 })
 
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// TUTORIAL — 教程进度（云端存储）
+// ═══════════════════════════════════════════════
+
+// 获取教程进度
+app.get("/api/tutorial/:userId", auth, (req, res) => {
+  const db = getDb()
+  const row = db.prepare("SELECT step, enabled FROM tutorial_progress WHERE userId = ?").get(req.params.userId)
+  res.json(row || { step: 0, enabled: 0 })
+})
+
+// 保存教程进度
+app.put("/api/tutorial/:userId", auth, (req, res) => {
+  const { step, enabled } = req.body
+  const db = getDb()
+  db.prepare(`
+    INSERT INTO tutorial_progress (userId, step, enabled, updatedAt)
+    VALUES (?, ?, ?, datetime('now','localtime'))
+    ON CONFLICT(userId) DO UPDATE SET
+      step = excluded.step,
+      enabled = excluded.enabled,
+      updatedAt = datetime('now','localtime')
+  `).run(req.params.userId, step ?? 0, enabled ? 1 : 0)
+  res.json({ success: true })
+})
+
+// ═══════════════════════════════════════════════
+// BUGS — Bug 记录
+// ═══════════════════════════════════════════════
+
+// 获取所有 bug
+app.get("/api/bugs", auth, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM bug_reports ORDER BY createdAt DESC").all()
+  res.json(rows)
+})
+
+// 创建 bug
+app.post("/api/bugs", auth, (req, res) => {
+  const { title, description, priority } = req.body
+  if (!title) return res.status(400).json({ error: "缺少标题" })
+  const db = getDb()
+  const id = `BUG-${Date.now()}`
+  db.prepare("INSERT INTO bug_reports (id, title, description, priority, reporter) VALUES (?, ?, ?, ?, ?)")
+    .run(id, title, description || '', priority || '中', req.user.name || req.user.username || '')
+  res.status(201).json({ id, message: 'Bug 已提交' })
+})
+
+// 更新 bug 状态
+app.put("/api/bugs/:id", auth, (req, res) => {
+  const { status } = req.body
+  if (!status) return res.status(400).json({ error: "缺少状态" })
+  getDb().prepare("UPDATE bug_reports SET status = ? WHERE id = ?").run(status, req.params.id)
+  res.json({ success: true })
+})
+
+// ═══════════════════════════════════════════════
+// EXCHANGE ORDERS — 兑换订单
+// ═══════════════════════════════════════════════
+
+// 获取订单列表
+app.get("/api/exchange-orders", auth, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM exchange_orders ORDER BY createdAt DESC").all()
+  res.json(rows)
+})
+
+// 创建订单
+app.post("/api/exchange-orders", auth, (req, res) => {
+  const { productId, productName, quantity, pointsCost } = req.body
+  if (!productId) return res.status(400).json({ error: "缺少商品信息" })
+  const db = getDb()
+  const id = `EX-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  db.prepare("INSERT INTO exchange_orders (id, userId, userName, productId, productName, quantity, pointsCost) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(id, req.user.id, req.user.name || req.user.username || '', productId, productName || '', quantity || 1, pointsCost || 0)
+  res.status(201).json({ id, message: '订单已创建' })
+})
+
+// 发货
+app.put("/api/exchange-orders/:id/ship", auth, adminOnly, (req, res) => {
+  const { shippedAccount } = req.body
+  if (!shippedAccount) return res.status(400).json({ error: "请填写发货账号" })
+  getDb().prepare("UPDATE exchange_orders SET status = 'shipped', shippedAccount = ? WHERE id = ?").run(shippedAccount, req.params.id)
+  res.json({ message: '发货成功' })
+})
+
+// ═══════════════════════════════════════════════
+// RESOURCE APPLICATIONS — 资源申请（云端存储）
+// ═══════════════════════════════════════════════
+
+// 获取资源申请列表
+app.get("/api/resource-applications", auth, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM resource_applications ORDER BY createdAt DESC").all()
+  res.json(rows)
+})
+
+// 提交资源申请
+app.post("/api/resource-applications", auth, (req, res) => {
+  const { resourceType, description, contact } = req.body
+  if (!resourceType) return res.status(400).json({ error: "请选择资源类型" })
+  const db = getDb()
+  const id = `RA-${Date.now()}`
+  db.prepare("INSERT INTO resource_applications (id, userId, userName, resourceType, description, contact) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(id, req.user.id, req.user.name || req.user.username || '', resourceType, description || '', contact || '')
+  res.status(201).json({ id, message: '申请已提交' })
+})
+
+// ═══════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════
 

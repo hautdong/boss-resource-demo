@@ -117,6 +117,30 @@ export const api = {
     list: () => request("/api/notifications"),
     readAll: () => request("/api/notifications/read-all", { method: "POST" }),
   },
+  tutorial: {
+    get: (userId: string) => request(`/api/tutorial/${userId}`),
+    save: (userId: string, data: { step: number; enabled: boolean }) =>
+      request(`/api/tutorial/${userId}`, { method: "PUT", body: JSON.stringify(data) }),
+  },
+  bugs: {
+    list: () => request("/api/bugs"),
+    create: (data: { title: string; description?: string; priority?: string }) =>
+      request("/api/bugs", { method: "POST", body: JSON.stringify(data) }),
+    updateStatus: (id: string, status: string) =>
+      request(`/api/bugs/${id}`, { method: "PUT", body: JSON.stringify({ status }) }),
+  },
+  exchangeOrders: {
+    list: () => request("/api/exchange-orders"),
+    create: (data: { productId: string; productName: string; quantity: number; pointsCost: number }) =>
+      request("/api/exchange-orders", { method: "POST", body: JSON.stringify(data) }),
+    ship: (id: string, shippedAccount: string) =>
+      request(`/api/exchange-orders/${id}/ship`, { method: "PUT", body: JSON.stringify({ shippedAccount }) }),
+  },
+  resourceApplications: {
+    list: () => request("/api/resource-applications"),
+    create: (data: { resourceType: string; description?: string; contact?: string }) =>
+      request("/api/resource-applications", { method: "POST", body: JSON.stringify(data) }),
+  },
 }
 
 // ── 兼容旧版导出 ──
