@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(token)
       authApi.me()
         .then((data) => {
-          setUser(data.user)
+          // 服务端可能返回 { user: {...} } 也可能直接返回用户对象
+          setUser(data.user || data)
         })
         .catch(() => {
           // Token invalid, clear it

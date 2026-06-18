@@ -100,10 +100,12 @@ app.get("/api/auth/me", auth, (req, res) => {
 })
 
 app.put("/api/auth/me", auth, (req, res) => {
-  const { activationStatus, examScore, examPassed } = req.body
+  // 兼容 status 和 activationStatus 两种字段名
+  const { activationStatus, status, examScore, examPassed } = req.body
+  const finalStatus = activationStatus || status || "pending"
   const db = getDb()
   db.prepare("UPDATE users SET activationStatus = ?, examScore = ?, examPassed = ? WHERE id = ?")
-    .run(activationStatus || "pending", examScore ?? null, examPassed ? 1 : 0, req.user.id)
+    .run(finalStatus, examScore ?? null, examPassed ? 1 : 0, req.user.id)
   res.json({ success: true })
 })
 
