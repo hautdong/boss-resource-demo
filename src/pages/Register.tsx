@@ -6,7 +6,7 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Select } from "../components/ui/select"
 import { Badge } from "../components/ui/badge"
-import { Shield, ArrowLeft, Loader2, Check, Phone, UserRound, Building2, KeyRound, Eye, EyeOff } from "lucide-react"
+import { Shield, ArrowLeft, Loader2, Phone, UserRound, Building2, KeyRound, Eye, EyeOff } from "lucide-react"
 
 const departmentOptions = [
   { value: "", label: "请选择所在部门" },
@@ -31,7 +31,6 @@ export default function Register() {
   const [department, setDepartment] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
 
@@ -58,8 +57,7 @@ export default function Register() {
     try {
       const result = await register({ name, username: phone, phone, password, department })
       if (result.success) {
-        setSuccess(true)
-        setTimeout(() => navigate("/activation", { replace: true }), 1500)
+        navigate("/activation", { replace: true })
       } else {
         setError(result.error || "注册失败")
       }
@@ -68,20 +66,6 @@ export default function Register() {
     } finally {
       setLoading(false)
     }
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
-        <div className="text-center animate-scale-in">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-6">
-            <Check className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <h2 className="text-2xl font-bold gradient-text">注册成功！</h2>
-          <p className="text-muted-foreground mt-2">即将进入账号激活流程...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
