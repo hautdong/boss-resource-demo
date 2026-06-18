@@ -549,14 +549,12 @@ app.post("/api/resource-applications", auth, (req, res) => {
 // START
 // ═══════════════════════════════════════════════
 
-// 生产环境：托管前端静态文件 + SPA 回退
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist')
-  app.use(express.static(distPath))
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'))
-  })
-}
+// 托管前端静态文件 + SPA 回退
+const distPath = path.join(__dirname, '..', 'dist')
+app.use(express.static(distPath))
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'))
+})
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ BOSS Resource API server running on port ${PORT}`)
