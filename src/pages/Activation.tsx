@@ -248,13 +248,14 @@ export default function Activation() {
     setShowPassDialog(true)
   }
 
-  // 确认通过弹窗 → 更新本地 user 状态并跳转
+  // 确认通过弹窗 → 先跳转再更新状态，避开 ActivationGuard 的拦截
   const confirmActivation = () => {
     if (!confirmActivationCalled.current) {
       confirmActivationCalled.current = true
-      completeExam(score, true)
+      navigate("/resource-apply", { replace: true })
+      // 延迟更新 user 状态，让 navigation 先完成
+      setTimeout(() => completeExam(score, true), 0)
     }
-    navigate("/resource-apply", { replace: true })
   }
 
   const confirmActivationCalled = useRef(false)
