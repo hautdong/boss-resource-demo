@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 import { useTutorial } from "../context/TutorialContext"
+import { authApi } from "../lib/api"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../components/ui/dialog"
@@ -223,7 +224,11 @@ export default function Activation() {
       setSubmitted(false)
       setPhase("result")
     } else {
-      await completeExam(totalScore, true)
+      // 考试通过：先保存到服务器，但不更新本地 user 状态
+      // 否则 ActivationGuard 会立即跳转到工作台，弹窗来不及渲染
+      try {
+        await authApi.updateActivation({ status: "activated", examScore: totalScore, examPassed: true })
+      } catch {}
       tutorial.goTo("apply")
       setSubmitted(false)
       setPhase("result")
@@ -235,11 +240,24 @@ export default function Activation() {
     setScore(100)
     setSubmitted(true)
     tutorial.goTo("apply")
-    await completeExam(100, true)
+    try {
+      await authApi.updateActivation({ status: "activated", examScore: 100, examPassed: true })
+    } catch {}
     setSubmitted(false)
     setPhase("result")
     setShowPassDialog(true)
   }
+
+  // 确认通过弹窗 → 更新本地 user 状态并跳转
+  const confirmActivation = () => {
+    if (!confirmActivationCalled.current) {
+      confirmActivationCalled.current = true
+      completeExam(score, true)
+    }
+    navigate("/resource-apply", { replace: true })
+  }
+
+  const confirmActivationCalled = useRef(false)
 
   const formatTime = (s: number) =>
     `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`
@@ -347,7 +365,7 @@ export default function Activation() {
             {/* Actions */}
             {passed ? (
               <div className="space-y-2 max-w-sm mx-auto">
-                <Button variant="primary" className="w-full" onClick={() => navigate("/resource-apply", { replace: true })}>
+                <Button variant="primary" className="w-full" onClick={confirmActivation}>
                   <CheckCircle2 className="h-5 w-5 mr-2" />申请BOSS资源
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => { logout(); navigate("/login", { replace: true }) }}>
@@ -514,7 +532,7 @@ export default function Activation() {
               variant="primary"
               className="w-full"
               size="lg"
-              onClick={() => navigate("/resource-apply", { replace: true })}
+              onClick={confirmActivation}
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />去申请BOSS资源
             </Button>
