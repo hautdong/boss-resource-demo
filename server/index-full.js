@@ -153,6 +153,13 @@ app.get("/api/points/ranking", auth, (req, res) => {
   res.json(result)
 })
 
+// 导入历史（静态 GET，必须在 :userId 之前定义）
+app.get("/api/points/import-history", auth, adminOnly, (req, res) => {
+  const db = getDb()
+  const rows = db.prepare("SELECT * FROM points_imports ORDER BY createdAt DESC LIMIT 50").all()
+  res.json(rows)
+})
+
 app.get("/api/points/:userId", auth, (req, res) => {
   const db = getDb()
   const rows = db.prepare("SELECT amount, reason, createdAt FROM points WHERE userId = ? ORDER BY id").all(req.params.userId)
@@ -427,13 +434,6 @@ app.post("/api/points/batch-import", auth, adminOnly, (req, res) => {
     .run(importId, fileName || '', importRows.length, matched, totalPoints, req.user.name || req.user.username || '')
 
   res.json({ success: true, matched, totalPoints, importId })
-})
-
-// 导入历史
-app.get("/api/points/import-history", auth, adminOnly, (req, res) => {
-  const db = getDb()
-  const rows = db.prepare("SELECT * FROM points_imports ORDER BY createdAt DESC LIMIT 50").all()
-  res.json(rows)
 })
 
 // ═══════════════════════════════════════════════
