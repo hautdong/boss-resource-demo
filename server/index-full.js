@@ -4,7 +4,7 @@ import jwt from "jsonwebtoken"
 import { getDb } from "./db.js"
 
 const app = express()
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 const JWT_SECRET = "boss-resource-system-secret-key-2026"
 
 app.use(cors())
@@ -548,6 +548,15 @@ app.post("/api/resource-applications", auth, (req, res) => {
 // ═══════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════
+
+// 生产环境：托管前端静态文件 + SPA 回退
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist')
+  app.use(express.static(distPath))
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ BOSS Resource API server running on port ${PORT}`)
