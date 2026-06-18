@@ -4,10 +4,10 @@ import { api } from "../lib/api"
 
 // ─── 教程步骤 ───
 export const TUTORIAL_STEPS = [
-  { id: "register", title: "注册账号",       desc: "注册成功！接下来请完成学习资料阅读" },
   { id: "study",    title: "学习资料",       desc: "请阅读学习资料，了解平台使用规则" },
   { id: "exam",     title: "参加考试",        desc: "学习完成后参加考试，通过后可申请资源" },
-  { id: "apply",    title: "申请BOSS账号",     desc: "考试通过，请进入BOSS资源页面申请账号" },
+  { id: "apply",    title: "申请BOSS资质",     desc: "考试通过，请申请BOSS资质" },
+  { id: "register", title: "注册BOSS账号",     desc: "资质通过后，注册BOSS账号" },
   { id: "complete", title: "完成新手教程",     desc: "恭喜！你已完成所有新手教程" },
 ]
 

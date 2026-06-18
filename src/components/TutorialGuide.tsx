@@ -1,14 +1,14 @@
 import { useTutorial } from "../context/TutorialContext"
 import { useAuth } from "../context/AuthContext"
 
-const STEP_LABELS = ["注册账号", "学习资料", "参加考试", "申请BOSS账号", "完成新手教程"]
+const STEP_LABELS = ["第一步学习资料", "第二步参加考试", "第三步申请BOSS资质", "第四步注册BOSS账号", "第五步完成新手教程"]
 
 /**
  * 新手引导教程 — 顶部进度条 + 步骤标签（正常文档流，不遮挡页面内容）
  * 仅对未激活的 BOSS 用户显示
  */
 export default function TutorialGuide() {
-  const { progress, isActive, state } = useTutorial()
+  const { isActive, state } = useTutorial()
   const { user } = useAuth()
 
   if (!isActive) return null
@@ -18,13 +18,6 @@ export default function TutorialGuide() {
 
   return (
     <div className="w-full shrink-0">
-      {/* 渐变进度条 */}
-      <div className="h-1.5 bg-gray-200 dark:bg-gray-700">
-        <div
-          className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-violet-500 transition-all duration-700 ease-out shadow-sm"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
       {/* 步骤标签行 — 手机和桌面显示同样的5个标签，通过响应式字号间距自动适配 */}
       <div className="bg-white/95 dark:bg-gray-900/95 border-b border-indigo-100 dark:border-indigo-900/30">
         <div className="flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-1 sm:py-1.5 overflow-x-auto">

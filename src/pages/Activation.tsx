@@ -36,7 +36,7 @@ export default function Activation() {
 
   // 学习阶段 → 进度条强制定位到"学习资料"
   useEffect(() => {
-    if (phase === "study" && tutorial.state.step !== 1) {
+    if (phase === "study" && tutorial.state.step !== 0) {
       tutorial.goTo("study")
     }
   }, [phase, tutorial.state.step, tutorial.goTo])
